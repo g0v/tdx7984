@@ -1,0 +1,206 @@
+import requests, json, os, re
+from operator import itemgetter
+
+G = {
+    'headers': {
+        'accept': 'application/json'
+    },
+    'city_ename': {
+        '台北市': 'Taipei',
+        '新北市': 'NewTaipei',
+        '桃園市': 'Taoyuan',
+        '台中市': 'Taichung',
+        '台南市': 'Tainan',
+        '高雄市': 'Kaohsiung',
+        '基隆市': 'Keelung',
+        '新竹市': 'Hsinchu',
+        '新竹縣': 'HsinchuCounty',
+        '苗栗縣': 'MiaoliCounty',
+        '彰化縣': 'ChanghuaCounty',
+        '南投縣': 'NantouCounty',
+        '雲林縣': 'YunlinCounty',
+        '嘉義縣': 'ChiayiCounty',
+        '嘉義市': 'Chiayi',
+        '屏東縣': 'PingtungCounty',
+        '宜蘭縣': 'YilanCounty',
+        '花蓮縣': 'HualienCounty',
+        '台東縣': 'TaitungCounty',
+        '金門縣': 'KinmenCounty',
+        '澎湖縣': 'PenghuCounty',
+        '連江縣': 'LienchiangCounty',
+    }
+}
+
+def city_ename(name):
+    if name in G['city_ename'].values():
+        return name
+    if re.search(r'(縣|市)$', name):
+        return G['city_ename'][name] if name in G['city_ename'].keys() else ''
+    else:
+        if name+'市' in G['city_ename'].keys():
+            return G['city_ename'][name+'市']
+        elif name+'縣' in G['city_ename'].keys():
+            return G['city_ename'][name+'縣']
+    return ''
+
+def load_credential():
+    global G
+    with open(os.environ['HOME']+'/.cache/tdx/tdx-credential.json') as f:
+        G['credential'] = json.load(f)['access_token']
+    G['headers']['authorization'] = f'Bearer {G["credential"]}'
+
+def query(qs):
+    global G, city_ename
+    response = requests.get(f'https://tdx.transportdata.tw/api/basic/v2/{qs}', headers=G['headers']).json()
+    if type(response) is dict and 'Not Found' in response['message']:
+        response = []
+    return response
+
+def geojify(point, coord_path='', name_path=''):
+    name = point
+    for k in name_path.split('/'): name = name[k]
+    coord = point[coord_path]
+    ans = {
+        'type': 'Feature',
+        'properties': {
+            'name': name,
+            'GeoHash': coord['GeoHash']
+        },
+        'geometry': {
+            'type': 'Point',
+            'coordinates': [
+                coord['PositionLon'],
+                coord['PositionLat']
+            ]
+        }
+    }
+    for k in point:
+        if k in [coord_path, name_path]: continue
+        ans['properties'][k] = point[k]
+    return ans
+    
+def merge_dir(stops_to, stops_fro, keep_dup=False):
+    stops_to = sorted(stops_to, key=itemgetter('StopSequence'))
+    stops_fro = sorted(stops_fro, key=itemgetter('StopSequence'), reverse=True)
+    by_name_to = {}
+    by_name_fro = {}
+    for s in stops_to:
+        by_name_to[ s['StopName']['Zh_tw'] ] = s
+    for s in stops_fro:
+        by_name_fro[ s['StopName']['Zh_tw'] ] = s
+    i_to = 0 ; i_fro = 0 ; ans = []
+    while i_to < len(stops_to) and i_fro < len(stops_fro) :
+        if stops_to[i_to]['StopName']['Zh_tw'] ==  stops_fro[i_fro]['StopName']['Zh_tw'] :
+            ans.append(stops_to[i_to])
+            if keep_dup:
+                ans.append(stops_fro[i_fro])
+            i_to += 1 ; i_fro += 1
+            continue
+        while i_to < len(stops_to) and not stops_to[i_to]['StopName']['Zh_tw'] in by_name_fro :
+            ans.append(stops_to[i_to])
+            i_to += 1
+        while i_fro < len(stops_fro) and not stops_fro[i_fro]['StopName']['Zh_tw'] in by_name_to :
+            ans.append(stops_fro[i_fro])
+            i_fro += 1
+    ans += stops_to[i_to:] + stops_fro[i_fro:]
+    return ans
+
+def bike_stations(city):
+    ans = query(f'/Bike/Station/City/{city_ename(city)}')
+    return [geojify(b, name_path='StationName/Zh_tw', coord_path='StationPosition') for b in ans]
+
+def bus_pos(city, srt_name, to_fro=2):
+    # to_fro: 0 去程 / 1 回程 / 2 全部
+    ans = query(f'Bus/RealTimeByFrequency/City/{city_ename(city)}/{srt_name}')
+    if to_fro < 2:
+        ans = [ b for b in ans if b['Direction']==to_fro ]
+    return [geojify(b, name_path='PlateNumb', coord_path='BusPosition') for b in ans]
+
+def bus_stops(city, srt_name, to_fro=3):
+    # to_fro: 0 去程 / 1 回程 / 2 全部 / 3 聯集， 刪除重複
+    ans = query(f'Bus/StopOfRoute/City/{city_ename(city)}/{srt_name}')
+    route = list(filter(lambda r: not '停駛' in r['SubRouteName']['Zh_tw'], ans))
+    # 例如台北 307
+    route = list(filter(lambda r: r['RouteName']['Zh_tw']==srt_name, route))
+    if len(route) > 2:
+        # 例如新北 243
+        route = list(filter(lambda r: r['SubRouteName']['Zh_tw']==srt_name, route))
+    assert(len(route)<=2)
+    if route == []: return []
+    if route[0]['Direction']==1:
+        route = route[::-1]
+    if len(route) < 2 : to_fro = 0
+    if to_fro < 2:
+        route = route[to_fro]['Stops']
+    elif to_fro == 3 and len(route) == 2:
+        route = merge_dir(route[0]['Stops'], route[1]['Stops'])
+    else:
+        route = [ s for srt in route for s in srt['Stops'] ]
+    return [geojify(s, name_path='StopName/Zh_tw', coord_path='StopPosition') for s in route]
+
+def bus_est(city, srt_name):
+    # https://motc-ptx.gitbook.io/tdx-zi-liao-shi-yong-kui-hua-bao-dian/data_notice/public_transportation_data/bus_static_data 站牌、站位與組站位間之差異
+    ans = query(f'Bus/EstimatedTimeOfArrival/City/{city_ename(city)}/{srt_name}')
+    n = len(list(filter(lambda r: 'StopSequence' in r, ans)))
+    if float(n)/len(ans)<0.2:
+        # 台北市的 EstimatedTimeOfArrival 好像都沒有 StopSequence
+        stop_info = dict(
+            (s['properties']['StopUID'], s) for s in bus_stops(city, srt_name, to_fro=2)
+        )
+    est_to = [] ; est_fro = []
+#    print(json.dumps(ans, ensure_ascii=False))
+    for stop in ans:
+        if stop['RouteName']['Zh_tw'] != srt_name: continue
+        # 台北市沒有 SubRouteID？ 例如 243、 307
+        if '裁撤' in stop['StopName']['Zh_tw']:
+            # NWT34537 '連城景平路(暫時裁撤)'
+            continue
+        est_1 = stop
+        if not 'StopSequence' in stop:
+            stop['StopSequence'] = stop_info[stop['StopUID']]['properties']['StopSequence']
+        if stop['Direction'] == 0 :
+            est_to.append(est_1)
+        else:
+            est_fro.append(est_1)
+    merged = merge_dir(est_to, est_fro, keep_dup=True)
+    deduped = []
+    i = 0
+    to_copy = [ 'StopSequence', 'EstimateTime', 'PlateNumb', 'Estimates' ]
+    while i < len(merged) - 1:
+        deduped.append(merged[i])
+        if merged[i]['StopName']['Zh_tw'] == merged[i+1]['StopName']['Zh_tw']:
+            k0 = i
+            if merged[i]['Direction'] == 1:
+                k0 = i+1
+            k1 = i+i+1 - k0 # 對面的站牌
+            assert(merged[k0]['Direction']+merged[k1]['Direction']==1)
+            deduped[-1]['dir0'] = { key: merged[k0][key] for key in to_copy if key in merged[k0] }
+            deduped[-1]['dir1'] = { key: merged[k1][key] for key in to_copy if key in merged[k1] }
+            i += 2
+        else:
+            if deduped[-1]['Direction'] == 0:
+                deduped[-1]['dir0'] = { key: merged[i][key] for key in to_copy if key in merged[i] }
+            else:
+                deduped[-1]['dir1'] = { key: merged[i][key] for key in to_copy if key in merged[i] }
+            i += 1
+    if i < len(merged):
+        deduped.append(merged[i])
+        if deduped[-1]['Direction'] == 0:
+            deduped[-1]['dir0'] = { key: merged[i][key] for key in to_copy if key in merged[i] }
+        else:
+            deduped[-1]['dir1'] = { key: merged[i][key] for key in to_copy if key in merged[i] }
+    return deduped
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(
+        description='tdx api test',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('city', type=str, help='縣市')
+    parser.add_argument('route_name', type=str, help='路線名稱')
+    args = parser.parse_args()
+    load_credential()
+#    ans = query(f'Bus/EstimatedTimeOfArrival/City/Taichung/{args.route_name}')
+#    print(json.dumps(ans, ensure_ascii=False))
+#    print(json.dumps(bus_est(args.city, args.route_name), ensure_ascii=False))
+    print(json.dumps(bus_est(args.city, args.route_name), ensure_ascii=False))

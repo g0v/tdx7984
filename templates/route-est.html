@@ -1,0 +1,30 @@
+<html>
+<head>
+<meta charset="UTF-8" />
+<link type="text/css" rel="stylesheet" href="{{ url_for('static',filename='tdx.css') }}" />
+</head>
+<body>
+    <h1>{{ rtname }} @ {{ city }}</h1>
+    <!-- jinja 的語法有點複雜：
+    https://documentation.bloomreach.com/engagement/docs/useful-jinja-snippets
+    https://jinja.palletsprojects.com/en/3.0.x/templates/
+    乾脆在主程式裡先處理好比較快。
+    如果 dict 裡面找不到想要的 key， 並不會出錯， 就印空字串， 這一點很方便。
+    -->
+    <table border="1" align="center">
+	<tr> <td>順序 <td>車牌 <td>預估 <td>站名 <td>預估 <td>車牌 <td>順序
+	<tr>
+        {% for stop in est %}
+        <tr>
+            <td>{{ stop['dir0']['StopSequence'] }}</td>
+            <td>{{ stop['dir0']['PlateNumb'] }}</td>
+	    <td>{{ stop['dir0']['est'] }}</td>
+            <td>{{ stop['StopName']['Zh_tw'] }}</td>
+	    <td>{{ stop['dir1']['est'] }}</td>
+            <td>{{ stop['dir1']['PlateNumb'] }}</td>
+            <td>{{ stop['dir1']['StopSequence'] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

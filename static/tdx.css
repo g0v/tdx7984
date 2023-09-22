@@ -1,0 +1,16 @@
+body { color: #000; background: #ffd; }
+
+.center { text-indent: 0; text-align: center; }
+
+h1 { text-align: center; }
+
+table {
+    border-collapse: collapse;
+}
+
+table.center {
+    margin: 0 auto;
+}
+
+table.center-content th, table.center-content td { text-align: center; }
+
