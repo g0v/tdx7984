@@ -1,0 +1,21 @@
+<html>
+<head>
+<meta charset="UTF-8" />
+<link type="text/css" rel="stylesheet" href="{{ url_for('static',filename='tdx.css') }}" />
+</head>
+<body>
+    <h1>{{ stopname }} @ {{ city }}</h1>
+
+    <table border="1" align="center">
+	<tr> <td>stn_id <td>路線
+	<tr>
+        {% for stop in est %}
+        <tr>
+            <td>{{ stop['stn_id'] }}</td>
+            <td>{{ stop['srt_cname'] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
+

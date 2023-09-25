@@ -1,4 +1,4 @@
-import argparse, csv, json, os, sqlite3, copy, re
+import argparse, csv, json, os, sqlite3
 from warnings import warn
 
 parser = argparse.ArgumentParser(
