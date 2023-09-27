@@ -1,5 +1,5 @@
 # apt install python3-flask python3-flask-cors python3-apscheduler
-import tdx, time, atexit, os, sqlite3, argparse, csv
+import tdx, time, atexit, os, sqlite3, argparse, csv, re, operator
 from flask import Flask, jsonify, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
@@ -67,34 +67,56 @@ def bus_stop(city, stopname):
     sqcursor.execute(
         'select stop.uid, stop.cname, stop.station_id, stop.subroute, subroute.cname from stop join subroute on stop.subroute=subroute.uid where stop.cname=? order by station_id', (stopname,)
     )
-    est = []
+    stops = []
+    stop2stn = {}
     for st in sqcursor.fetchall():
-        entry = dict(zip(['stop_uid', 'cname', 'stn_id', 'srt_uid', 'srt_cname'], st))
-        city_code = entry['stop_uid'][:3]
+        st = dict(zip(['stop_uid', 'cname', 'stn_id', 'srt_uid', 'srt_cname'], st))
+        city_code = st['stop_uid'][:3]
         if G['city'][city_code]['ename'] == city_ename:
-            est.append(entry)
+            stops.append(st)
+            stop2stn[st['stop_uid']] = st['stn_id']
     sqcon.close()
-    return render_template('stn-est.html', city=city, stopname=stopname, est=est)
+    all_est = {}
+    # 一開始先按照 rtname 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
+    for st in stops:
+        rtname = st['srt_cname']
+        if not rtname in all_est:
+            all_est[rtname] = []
+            for est in tdx.query(f'Bus/EstimatedTimeOfArrival/City/{city_ename}/{rtname}'):
+                if not est['StopName']['Zh_tw'] == stopname : continue
+                est['EstimateTime'] = int(est['EstimateTime']/60) if 'EstimateTime' in est else 9999
+                if not 'PlateNumb' in est:
+                    est['PlateNumb'] = ''
+                est['stn_id'] = stop2stn[est['StopUID']]
+                est['rtname'] = rtname
+                all_est[rtname].append(est)
+    # 再把 all_est 攤平、 先按照 stn_id (也就是方向)、 再按照預估抵達時間排序
+    all_est = [ dir_est for rtname in all_est for dir_est in all_est[rtname] ]
+    all_est = sorted( all_est, key = operator.itemgetter('stn_id', 'EstimateTime') )
+    return render_template('stn-est.html', city=city, stopname=stopname, est=all_est)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='重新包裝少數幾個交通部的 tdx API， 以 geojson 或 html 網頁呈現',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-d', '--rsdb', type=str,
-        default='routes_stops.sqlite3',
+        default='',
         help='全國所有縣市公車路線與站牌資料庫檔案')
     G['args'] = parser.parse_args()
+    m = re.search(r'(.*)/', __file__)
+    my_dir = m.group(1)
+    if G['args'].rsdb == '':
+        G['args'].rsdb = f'{my_dir}/routes_stops.sqlite3'
 
     tdx.load_credential()
 
     G['city'] = {}
-    with open('cities.csv') as F:
+    with open(f'{my_dir}/cities.csv') as F:
         for row in csv.DictReader(F):
             G['city'][row['code']] = {
                 'cname': row['cname'],
                 'ename': row['ename']
             }
-
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=tdx.load_credential, trigger='interval', seconds=7200)
     atexit.register(lambda: scheduler.shutdown())

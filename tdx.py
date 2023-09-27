@@ -141,6 +141,7 @@ def bus_stops(city, srt_name, to_fro=3):
 def bus_est(city, srt_name):
     # https://motc-ptx.gitbook.io/tdx-zi-liao-shi-yong-kui-hua-bao-dian/data_notice/public_transportation_data/bus_static_data 站牌、站位與組站位間之差異
     ans = query(f'Bus/EstimatedTimeOfArrival/City/{city_ename(city)}/{srt_name}')
+    if ans == []: return []
     n = len(list(filter(lambda r: 'StopSequence' in r, ans)))
     if float(n)/len(ans)<0.2:
         # 台北市的 EstimatedTimeOfArrival 好像都沒有 StopSequence
@@ -165,7 +166,7 @@ def bus_est(city, srt_name):
     merged = merge_dir(est_to, est_fro, keep_dup=True)
     deduped = []
     i = 0
-    to_copy = [ 'StopSequence', 'EstimateTime', 'PlateNumb', 'Estimates' ]
+    to_copy = [ 'StopUID', 'StopSequence', 'EstimateTime', 'PlateNumb', 'Estimates' ]
     while i < len(merged) - 1:
         deduped.append(merged[i])
         if merged[i]['StopName']['Zh_tw'] == merged[i+1]['StopName']['Zh_tw']:

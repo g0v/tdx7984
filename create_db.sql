@@ -20,12 +20,15 @@ create table subroute (
 );
 
 create table stop (
-    uid int primary key not null,
-    subroute text,
+    uid text not null,
+    subroute text not null,
+    dir int,
     station_id int,
     cname text,
     ename text,
+    sequence int,
     longitude float,
     latitude float,
+    primary key (uid, subroute, dir),
     foreign key (subroute) references subroute(uid)
 );

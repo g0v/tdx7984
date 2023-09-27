@@ -2,13 +2,8 @@ import argparse, csv, json, os, sqlite3
 from warnings import warn
 
 parser = argparse.ArgumentParser(
-    description='讀取 (從 tdx 讀取的) *.json 公車路線與站牌資訊、 轉而存入 sqlite3 資料庫',
+    description='讀取 (從 tdx 取得的) *.json 公車路線與站牌資訊、 轉而存入 sqlite3 資料庫',
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('-t', '--topdir', type=str,
-    default=os.environ['HOME']+'/linespector',
-    help='top directory for the db file if its full path is not specified')
-parser.add_argument('-m', '--mode', type=str, default='init+parse+save',
-    help='save? parse? or init only?')
 parser.add_argument('dbfile', help='資料庫.sqlite3')
 
 args = parser.parse_args()
@@ -48,11 +43,11 @@ for ct in list(city_dict['by_ename'].keys()):
             if not 'StationID' in st: st['StationID'] = ''
             # 連江縣的資料沒有這個欄位
             values = [
-                st['StopUID'], rt['SubRouteUID'], st['StationID'], st['StopName']['Zh_tw'], st['StopName']['En'],
-                st['StopPosition']['PositionLon'], st['StopPosition']['PositionLat']
+                st['StopUID'], rt['SubRouteUID'], rt['Direction'], st['StationID'], st['StopName']['Zh_tw'], st['StopName']['En'],
+                st['StopSequence'], st['StopPosition']['PositionLon'], st['StopPosition']['PositionLat']
             ]
             sqcon.execute(
-                'insert or replace into stop(uid, subroute, station_id, cname, ename, longitude, latitude) values (?, ?, ?, ?, ?, ?, ?)', values
+                'insert or replace into stop(uid, subroute, dir, station_id, cname, ename, sequence, longitude, latitude) values (?, ?, ?, ?, ?, ?, ?, ?, ?)', values
             )
     sqcon.execute('commit')
 
