@@ -58,6 +58,27 @@ def bus_rte(city, rtname):
             s['dir1'] = empty
     return render_template('route-est.html', city=city, rtname=rtname, est=est)
 
+def find_stop_fill_next(stopname, dir, rt_est):
+    # 在 rt_est 某路線預估清單裡面找到站名為 stopname、
+    # 方向為 dir 的那一筆， 並且幫它建立 'nextstop' 欄位，
+    # 填入下一站的名稱。 方法是把同方向的站牌順過一次，
+    # 找到等待同一部公車的任意相鄰兩站， 如果兩者的預估時間不同，
+    # 就可以確定哪個方向才是下一站。
+    samedir = sorted([ est for est in rt_est if est['Direction']==dir ], key='StopSequence')
+    for i in range(len(samedir)):
+        if samedir[i]['StopName']['Zh_tw'] == stopname: break
+    print(stopname, dir, i)
+    if i >= len(samedir): return None
+    focus = i
+    for i in range(len(samedir))-1:
+        if samedir[i]['PlateNumb'] == samedir[i+1]['PlateNumb'] and samedir[i]['EstimateTime'] != samedir[i+1]['EstimateTime']:
+            if samedir[i]['EstimateTime'] < samedir[i+1]['EstimateTime']:
+                samedir[focus]['nextstop'] = samedir[focus+1]['StopName']['Zh_tw'] if focus+1 < len(samedir) else ''
+            else:
+                samedir[focus]['nextstop'] = samedir[focus-1]['StopName']['Zh_tw'] if focus > 0 else ''
+            break
+    return samedir[focus]
+
 @app.route('/bus/stop/<city>/<stopname>.html')
 def bus_stop(city, stopname):
     global G
@@ -65,35 +86,31 @@ def bus_stop(city, stopname):
     sqcon = sqlite3.connect(G['args'].rsdb)
     sqcursor = sqcon.cursor()
     sqcursor.execute(
-        'select stop.uid, stop.cname, stop.station_id, stop.subroute, subroute.cname from stop join subroute on stop.subroute=subroute.uid where stop.cname=? order by station_id', (stopname,)
+        'select stop.uid, stop.cname, stop.srt_uid, subroute.cname, stop.dir from stop join subroute on stop.srt_uid=subroute.uid where stop.cname=?', (stopname,)
     )
     stops = []
-    stop2stn = {}
-    for st in sqcursor.fetchall():
-        st = dict(zip(['stop_uid', 'cname', 'stn_id', 'srt_uid', 'srt_cname'], st))
-        city_code = st['stop_uid'][:3]
-        if G['city'][city_code]['ename'] == city_ename:
-            stops.append(st)
-            stop2stn[st['stop_uid']] = st['stn_id']
+    for st_of_srt in sqcursor.fetchall():
+        st_of_srt = dict(zip(['stop_uid', 'cname', 'srt_uid', 'srt_cname', 'dir'], st_of_srt))
+        city_code = st_of_srt['stop_uid'][:3]
+        if not G['city'][city_code]['ename'] == city_ename: continue
     sqcon.close()
-    all_est = {}
+    visited = {}
+    all_est = []
     # 一開始先按照 rtname 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
     for st in stops:
         rtname = st['srt_cname']
-        if not rtname in all_est:
-            all_est[rtname] = []
-            for est in tdx.query(f'Bus/EstimatedTimeOfArrival/City/{city_ename}/{rtname}'):
-                if not est['StopName']['Zh_tw'] == stopname : continue
-                est['EstimateTime'] = int(est['EstimateTime']/60) if 'EstimateTime' in est else 9999
-                if not 'PlateNumb' in est:
-                    est['PlateNumb'] = ''
-                est['stn_id'] = stop2stn[est['StopUID']]
-                est['rtname'] = rtname
-                all_est[rtname].append(est)
-    # 再把 all_est 攤平、 先按照 stn_id (也就是方向)、 再按照預估抵達時間排序
-    all_est = [ dir_est for rtname in all_est for dir_est in all_est[rtname] ]
-    all_est = sorted( all_est, key = operator.itemgetter('stn_id', 'EstimateTime') )
-    return render_template('stn-est.html', city=city, stopname=stopname, est=all_est)
+        # 每一個站牌名稱可能有兩個 (方向的) 估計到站時刻
+        if rtname in visited: continue
+        visited[rtname] = True
+        # 台中跟台北的 StopSequence 定義不同，
+        # 所以必須保留其他站的預估到站資訊， 才好找 「下一站」。
+        rt_est = [ est for est in tdx.query(f'Bus/EstimatedTimeOfArrival/City/{city_ename}/{rtname}') if est['SubRouteName']['Zh_tw'] == rtname ]
+        est = find_stop_fill_next(stopname, 0, rt_est)
+        if est is not None: all_est.append(est)
+        est = find_stop_fill_next(stopname, 1, rt_est)
+        if est is not None: all_est.append(est)
+    all_est = sorted( all_est, key = operator.itemgetter('nextstop', 'EstimateTime') )
+    return render_template('stop-est.html', city=city, stopname=stopname, est=all_est)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

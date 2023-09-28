@@ -7,12 +7,15 @@
     <h1>{{ stopname }} @ {{ city }}</h1>
 
     <table border="1" align="center">
-	<tr> <td>stn_id <td>路線
+	<tr> <td>StopUID <td>下一站 <td>路線 <td>預估 <td>車牌
 	<tr>
         {% for stop in est %}
         <tr>
-            <td>{{ stop['stn_id'] }}</td>
-            <td>{{ stop['srt_cname'] }}</td>
+            <td>{{ stop['StopUID'] }}</td>
+            <td>{{ stop['nextstop'] }}</td>
+	    <td><a href="/bus/rte/{{ city }}/{{ stop['rtname'] }}.html">{{ stop['rtname'] }}</a></td>
+            <td>{{ stop['EstimateTime'] }}</td>
+            <td>{{ stop['PlateNumb'] }}</td>
         </tr>
         {% endfor %}
     </table>

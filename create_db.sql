@@ -9,6 +9,7 @@ create table city (
 
 create table subroute (
     uid text primary key not null,
+    dir int,
     cname text,
     ename text,
     main_cname text,
@@ -20,15 +21,15 @@ create table subroute (
 );
 
 create table stop (
-    uid text not null,
-    subroute text not null,
-    dir int,
+    uid text,
+    srt_uid text not null,
+    dir int not null,
     station_id int,
-    cname text,
+    cname text not null,
     ename text,
     sequence int,
     longitude float,
     latitude float,
-    primary key (uid, subroute, dir),
-    foreign key (subroute) references subroute(uid)
+    primary key (cname, srt_uid, dir),
+    foreign key (srt_uid) references subroute(uid)
 );

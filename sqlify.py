@@ -31,11 +31,11 @@ for ct in list(city_dict['by_ename'].keys()):
         if not 'En' in rt['RouteName']: rt['RouteName']['En'] = ''
         # KIN92
         values = [
-            rt['SubRouteUID'], rt['SubRouteName']['Zh_tw'], rt['SubRouteName']['En'], rt['RouteName']['Zh_tw'],
+            rt['SubRouteUID'], rt['Direction'], rt['SubRouteName']['Zh_tw'], rt['SubRouteName']['En'], rt['RouteName']['Zh_tw'],
             rt['RouteName']['En'], rt['Stops'][0]['StopUID'], rt['Stops'][-1]['StopUID']
         ]
         sqcon.execute(
-            'insert or replace into subroute(uid, cname, ename, main_cname, main_ename, first_stop, last_stop) values (?, ?, ?, ?, ?, ?, ?)', values
+            'insert or replace into subroute(uid, dir, cname, ename, main_cname, main_ename, first_stop, last_stop) values (?, ?, ?, ?, ?, ?, ?, ?)', values
         )
         for st in rt['Stops']:
             if not 'En' in st['StopName']: st['StopName']['En'] = ''
@@ -43,11 +43,11 @@ for ct in list(city_dict['by_ename'].keys()):
             if not 'StationID' in st: st['StationID'] = ''
             # 連江縣的資料沒有這個欄位
             values = [
-                st['StopUID'], rt['SubRouteUID'], rt['Direction'], st['StationID'], st['StopName']['Zh_tw'], st['StopName']['En'],
+                st['StopUID'], rt['Direction'], rt['SubRouteUID'], st['StationID'], st['StopName']['Zh_tw'], st['StopName']['En'],
                 st['StopSequence'], st['StopPosition']['PositionLon'], st['StopPosition']['PositionLat']
             ]
             sqcon.execute(
-                'insert or replace into stop(uid, subroute, dir, station_id, cname, ename, sequence, longitude, latitude) values (?, ?, ?, ?, ?, ?, ?, ?, ?)', values
+                'insert or replace into stop(uid, dir, srt_uid, station_id, cname, ename, sequence, longitude, latitude) values (?, ?, ?, ?, ?, ?, ?, ?, ?)', values
             )
     sqcon.execute('commit')
 
