@@ -1,47 +1,46 @@
-import requests, json, os, re
+import requests, json, os, sqlite3, csv, re
 from operator import itemgetter
+
+city_list = {
+    'by_code': {}, 'by_cname': {}, 'by_ename': {}
+}
 
 G = {
     'headers': {
         'accept': 'application/json'
     },
-    'city_ename': {
-        '台北市': 'Taipei',
-        '新北市': 'NewTaipei',
-        '桃園市': 'Taoyuan',
-        '台中市': 'Taichung',
-        '台南市': 'Tainan',
-        '高雄市': 'Kaohsiung',
-        '基隆市': 'Keelung',
-        '新竹市': 'Hsinchu',
-        '新竹縣': 'HsinchuCounty',
-        '苗栗縣': 'MiaoliCounty',
-        '彰化縣': 'ChanghuaCounty',
-        '南投縣': 'NantouCounty',
-        '雲林縣': 'YunlinCounty',
-        '嘉義縣': 'ChiayiCounty',
-        '嘉義市': 'Chiayi',
-        '屏東縣': 'PingtungCounty',
-        '宜蘭縣': 'YilanCounty',
-        '花蓮縣': 'HualienCounty',
-        '台東縣': 'TaitungCounty',
-        '金門縣': 'KinmenCounty',
-        '澎湖縣': 'PenghuCounty',
-        '連江縣': 'LienchiangCounty',
-    }
 }
 
-def city_ename(name):
-    if name in G['city_ename'].values():
+def init(dbpath=''):
+    global city_list, G
+    m = re.search(r'(.*)/', __file__)
+    my_dir = m.group(1)
+    G['dbpath'] = f'{my_dir}/routes_stops.sqlite3' if dbpath == '' else dbpath
+    with open(f'{my_dir}/cities.csv') as F:
+        for row in csv.DictReader(F):
+            city_list['by_code'][row['code']] = row
+            city_list['by_cname'][row['cname']] = row
+            city_list['by_ename'][row['ename']] = row
+    load_credential()
+
+def city_code(name):
+    global city_list
+    if name in city_list['by_code'].keys():
         return name
+    if name in city_list['by_ename'].keys():
+        return city_list['by_ename'][name]['code']
     if re.search(r'(縣|市)$', name):
-        return G['city_ename'][name] if name in G['city_ename'].keys() else ''
-    else:
-        if name+'市' in G['city_ename'].keys():
-            return G['city_ename'][name+'市']
-        elif name+'縣' in G['city_ename'].keys():
-            return G['city_ename'][name+'縣']
+        return city_list['by_cname'][name]['code'] if name in city_list['by_cname'].keys() else ''
+    if name+'市' in city_list['by_cname'].keys():
+        return city_list['by_cname'][name+'市']['code']
+    elif name+'縣' in city_list['by_cname'].keys():
+        return city_list['by_cname'][name+'縣']['code']
     return ''
+
+def city_ename(name):
+    global city_list
+    code = city_code(name)
+    return city_list['by_code'][code]['ename'] if code != '' else ''
 
 def load_credential():
     global G
@@ -50,7 +49,7 @@ def load_credential():
     G['headers']['authorization'] = f'Bearer {G["credential"]}'
 
 def query(qs):
-    global G, city_ename
+    global G
     response = requests.get(f'https://tdx.transportdata.tw/api/basic/v2/{qs}', headers=G['headers']).json()
     if type(response) is dict and 'Not Found' in response['message']:
         response = []
@@ -118,17 +117,43 @@ def bus_pos(city, srt_name, to_fro=2):
 
 def bus_stops(city, srt_name, to_fro=3):
     # to_fro: 0 去程 / 1 回程 / 2 全部 / 3 聯集， 刪除重複
+#    if False:
+#        sqcon = sqlite3.connect(G['args'].dbpath)
+#        sqcursor = sqcon.cursor()
+#        sqcursor.execute(
+#            'select * from subroute where subroute.cname=? and substr(uid,0,4)=?', (srt_name, city_code(city))
+#        )
+#        routes = list(sqcursor.fetchall())
+#        if route == []: return []
+#        assert(len(routes) == 1)
+#        srt_uid = routes[0][0]
+#        sqcursor.execute(
+#            'select uid, dir, cname, sequence, longitude, latitude from stop where srt_uid=?', (srt_uid, )
+#        )
+#        route = [
+#            dict(zip(['uid', 'dir', 'cname', 'sequence', 'longitude', 'latitude'], st_of_srt)) for st_of_srt in sqcursor.fetchall() 
+#        ]
+#        sqcon.close()
+#        rt_to_fro = [
+#            [ s for s in route if s['dir']==0 ],
+#            [ s for s in route if s['dir']==1 ]
+#        ]
+#        if to_fro < 2:
+#            route = rt_to_fro[to_fro]
+#        elif to_fro == 3:
+#            route = merge_dir(rt_to_fro[0], rt_to_fro[1])
+#    else:
     ans = query(f'Bus/StopOfRoute/City/{city_ename(city)}/{srt_name}')
+    # 例如台北 "307"， 在 tdx api 裡面會撈到
+    # 307莒光往板橋前站、 307莒光往撫遠街、 307西藏往板橋前站(停駛)、 307西藏往撫遠街(停駛)、 307西藏往板橋前站、 307西藏往撫遠街、
     route = list(filter(lambda r: not '停駛' in r['SubRouteName']['Zh_tw'], ans))
-    # 例如台北 307
     route = list(filter(lambda r: r['RouteName']['Zh_tw']==srt_name, route))
     if len(route) > 2:
         # 例如新北 243
         route = list(filter(lambda r: r['SubRouteName']['Zh_tw']==srt_name, route))
     assert(len(route)<=2)
-    if route == []: return []
     if route[0]['Direction']==1:
-        route = route[::-1]
+        route = [ route[1], route[0] ]
     if len(route) < 2 : to_fro = 0
     if to_fro < 2:
         route = route[to_fro]['Stops']
@@ -192,6 +217,8 @@ def bus_est(city, srt_name):
             deduped[-1]['dir1'] = { key: merged[i][key] for key in to_copy if key in merged[i] }
     return deduped
 
+init()
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(
@@ -200,7 +227,6 @@ if __name__ == '__main__':
     parser.add_argument('city', type=str, help='縣市')
     parser.add_argument('route_name', type=str, help='路線名稱')
     args = parser.parse_args()
-    load_credential()
 #    ans = query(f'Bus/EstimatedTimeOfArrival/City/Taichung/{args.route_name}')
 #    print(json.dumps(ans, ensure_ascii=False))
 #    print(json.dumps(bus_est(args.city, args.route_name), ensure_ascii=False))

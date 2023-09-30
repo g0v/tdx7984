@@ -64,26 +64,30 @@ def find_stop_fill_next(stopname, dir, rt_est):
     # 填入下一站的名稱。 方法是把同方向的站牌順過一次，
     # 找到等待同一部公車的任意相鄰兩站， 如果兩者的預估時間不同，
     # 就可以確定哪個方向才是下一站。
-    samedir = sorted([ est for est in rt_est if est['Direction']==dir ], key='StopSequence')
+
+    # 台北市的 EstimatedTimeOfArrival 好像都沒有 StopSequence
+    samedir = [ est for est in rt_est if est['Direction']==dir ]
+    samedir = sorted(samedir, key=operator.itemgetter('StopSequence'))
+    i = 0
     for i in range(len(samedir)):
         if samedir[i]['StopName']['Zh_tw'] == stopname: break
-    print(stopname, dir, i)
     if i >= len(samedir): return None
     focus = i
-    for i in range(len(samedir))-1:
+    for i in range(len(samedir)-1):
         if samedir[i]['PlateNumb'] == samedir[i+1]['PlateNumb'] and samedir[i]['EstimateTime'] != samedir[i+1]['EstimateTime']:
             if samedir[i]['EstimateTime'] < samedir[i+1]['EstimateTime']:
                 samedir[focus]['nextstop'] = samedir[focus+1]['StopName']['Zh_tw'] if focus+1 < len(samedir) else ''
             else:
                 samedir[focus]['nextstop'] = samedir[focus-1]['StopName']['Zh_tw'] if focus > 0 else ''
             break
+    if not 'nextstop' in samedir[focus]: return None
     return samedir[focus]
 
 @app.route('/bus/stop/<city>/<stopname>.html')
 def bus_stop(city, stopname):
     global G
     city_ename = tdx.city_ename(city)
-    sqcon = sqlite3.connect(G['args'].rsdb)
+    sqcon = sqlite3.connect(G['args'].dbpath)
     sqcursor = sqcon.cursor()
     sqcursor.execute(
         'select stop.uid, stop.cname, stop.srt_uid, subroute.cname, stop.dir from stop join subroute on stop.srt_uid=subroute.uid where stop.cname=?', (stopname,)
@@ -92,7 +96,8 @@ def bus_stop(city, stopname):
     for st_of_srt in sqcursor.fetchall():
         st_of_srt = dict(zip(['stop_uid', 'cname', 'srt_uid', 'srt_cname', 'dir'], st_of_srt))
         city_code = st_of_srt['stop_uid'][:3]
-        if not G['city'][city_code]['ename'] == city_ename: continue
+        if tdx.city_list['by_code'][city_code]['ename'] == city_ename:
+            stops.append(st_of_srt)
     sqcon.close()
     visited = {}
     all_est = []
@@ -104,36 +109,35 @@ def bus_stop(city, stopname):
         visited[rtname] = True
         # 台中跟台北的 StopSequence 定義不同，
         # 所以必須保留其他站的預估到站資訊， 才好找 「下一站」。
-        rt_est = [ est for est in tdx.query(f'Bus/EstimatedTimeOfArrival/City/{city_ename}/{rtname}') if est['SubRouteName']['Zh_tw'] == rtname ]
+        rt_est = []
+        for est in tdx.query(f'Bus/EstimatedTimeOfArrival/City/{city_ename}/{rtname}'):
+            # 台北市沒有 SubRouteID？ 例如 243、 307
+            if 'SubRouteName' in est:
+                if est['SubRouteName']['Zh_tw'] != rtname: continue
+            else:
+                if est['RouteName']['Zh_tw'] != rtname: continue
+            est['EstimateTime'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
+            rt_est.append(est)
         est = find_stop_fill_next(stopname, 0, rt_est)
         if est is not None: all_est.append(est)
         est = find_stop_fill_next(stopname, 1, rt_est)
         if est is not None: all_est.append(est)
-    all_est = sorted( all_est, key = operator.itemgetter('nextstop', 'EstimateTime') )
+    all_est = sorted(all_est, key=operator.itemgetter('nextstop','EstimateTime'))
     return render_template('stop-est.html', city=city, stopname=stopname, est=all_est)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='重新包裝少數幾個交通部的 tdx API， 以 geojson 或 html 網頁呈現',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-d', '--rsdb', type=str,
+    parser.add_argument('-d', '--dbpath', type=str,
         default='',
         help='全國所有縣市公車路線與站牌資料庫檔案')
     G['args'] = parser.parse_args()
     m = re.search(r'(.*)/', __file__)
     my_dir = m.group(1)
-    if G['args'].rsdb == '':
-        G['args'].rsdb = f'{my_dir}/routes_stops.sqlite3'
+    if G['args'].dbpath == '':
+        G['args'].dbpath = f'{my_dir}/routes_stops.sqlite3'
 
-    tdx.load_credential()
-
-    G['city'] = {}
-    with open(f'{my_dir}/cities.csv') as F:
-        for row in csv.DictReader(F):
-            G['city'][row['code']] = {
-                'cname': row['cname'],
-                'ename': row['ename']
-            }
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=tdx.load_credential, trigger='interval', seconds=7200)
     atexit.register(lambda: scheduler.shutdown())
