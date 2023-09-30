@@ -1,4 +1,4 @@
-import requests, json, os, sqlite3, csv, re
+import requests, json, os, csv, re
 from operator import itemgetter
 
 city_list = {

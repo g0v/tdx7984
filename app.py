@@ -65,7 +65,8 @@ def find_stop_fill_next(stopname, dir, rt_est):
     # 找到等待同一部公車的任意相鄰兩站， 如果兩者的預估時間不同，
     # 就可以確定哪個方向才是下一站。
 
-    # 台北市的 EstimatedTimeOfArrival 好像都沒有 StopSequence
+    # 注意： 台北市的 EstimatedTimeOfArrival 沒有 StopSequence，
+    # 但此處假設他處已幫忙填好
     samedir = [ est for est in rt_est if est['Direction']==dir ]
     samedir = sorted(samedir, key=operator.itemgetter('StopSequence'))
     i = 0
@@ -73,12 +74,16 @@ def find_stop_fill_next(stopname, dir, rt_est):
         if samedir[i]['StopName']['Zh_tw'] == stopname: break
     if i >= len(samedir): return None
     focus = i
+    if not 'PlateNumb' in samedir[0]:
+        # 台北市的 EstimatedTimeOfArrival 沒有 PlateNumb
+        samedir[focus]['nextstop'] = samedir[focus+1 if focus+1<len(samedir) else focus]['StopName']['Zh_tw']
+        return samedir[focus]
     for i in range(len(samedir)-1):
         if samedir[i]['PlateNumb'] == samedir[i+1]['PlateNumb'] and samedir[i]['EstimateTime'] != samedir[i+1]['EstimateTime']:
             if samedir[i]['EstimateTime'] < samedir[i+1]['EstimateTime']:
-                samedir[focus]['nextstop'] = samedir[focus+1]['StopName']['Zh_tw'] if focus+1 < len(samedir) else ''
+                samedir[focus]['nextstop'] = samedir[focus+1 if focus+1 < len(samedir) else focus]['StopName']['Zh_tw']
             else:
-                samedir[focus]['nextstop'] = samedir[focus-1]['StopName']['Zh_tw'] if focus > 0 else ''
+                samedir[focus]['nextstop'] = samedir[focus-1 if focus>0 else 0]['StopName']['Zh_tw']
             break
     if not 'nextstop' in samedir[focus]: return None
     return samedir[focus]
@@ -107,16 +112,35 @@ def bus_stop(city, stopname):
         # 每一個站牌名稱可能有兩個 (方向的) 估計到站時刻
         if rtname in visited: continue
         visited[rtname] = True
-        # 台中跟台北的 StopSequence 定義不同，
-        # 所以必須保留其他站的預估到站資訊， 才好找 「下一站」。
-        rt_est = []
-        for est in tdx.query(f'Bus/EstimatedTimeOfArrival/City/{city_ename}/{rtname}'):
+        raw_est = list( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{city_ename}/{rtname}') )
+        if len(raw_est) < 1: continue
+        # 新北 243寵物公車
+        if not 'StopSequence' in raw_est[0]:
+            # 台北的估計到站時刻資訊不含 StopSequence
+            tdx.query(f'Bus/EstimatedTimeOfArrival/City/{city_ename}/{rtname}')
+            stops_this_route = tdx.bus_stops(city_ename, rtname, to_fro=2)
+            seq_by_stopuid = dict([ (st['properties']['StopUID'], st['properties']['StopSequence']) for st in stops_this_route ])
+        # 台中跟台北的 StopSequence (方向) 定義不同。
+        # 保留同一路線上其他站的預估到站資訊， 才好找 「下一站」。
+        rt_est = []     # 一條路線的 (最多) 兩筆預估記錄
+        for est in raw_est:
             # 台北市沒有 SubRouteID？ 例如 243、 307
             if 'SubRouteName' in est:
                 if est['SubRouteName']['Zh_tw'] != rtname: continue
             else:
                 if est['RouteName']['Zh_tw'] != rtname: continue
+                est['SubRouteName'] = est['RouteName']
             est['EstimateTime'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
+            if not 'StopSequence' in est:
+                # 台北市的 EstimatedTimeOfArrival 好像都沒有 StopSequence
+                # sqcon = sqlite3.connect(G['args'].dbpath)
+                # sqcursor = sqcon.cursor()
+                # sqcursor.execute(
+                #     'select sequence from stop where uid=?', (est['StopUID'],)
+                # )
+                # est['StopSequence'] = sqcursor.fetchone()[0]
+                # sqcon.close()
+                est['StopSequence'] = seq_by_stopuid[est['StopUID']]
             rt_est.append(est)
         est = find_stop_fill_next(stopname, 0, rt_est)
         if est is not None: all_est.append(est)
