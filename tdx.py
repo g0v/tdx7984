@@ -117,32 +117,6 @@ def bus_pos(city, srt_name, to_fro=2):
 
 def bus_stops(city, srt_name, to_fro=3):
     # to_fro: 0 去程 / 1 回程 / 2 全部 / 3 聯集， 刪除重複
-#    if False:
-#        sqcon = sqlite3.connect(G['args'].dbpath)
-#        sqcursor = sqcon.cursor()
-#        sqcursor.execute(
-#            'select * from subroute where subroute.cname=? and substr(uid,0,4)=?', (srt_name, city_code(city))
-#        )
-#        routes = list(sqcursor.fetchall())
-#        if route == []: return []
-#        assert(len(routes) == 1)
-#        srt_uid = routes[0][0]
-#        sqcursor.execute(
-#            'select uid, dir, cname, sequence, longitude, latitude from stop where srt_uid=?', (srt_uid, )
-#        )
-#        route = [
-#            dict(zip(['uid', 'dir', 'cname', 'sequence', 'longitude', 'latitude'], st_of_srt)) for st_of_srt in sqcursor.fetchall() 
-#        ]
-#        sqcon.close()
-#        rt_to_fro = [
-#            [ s for s in route if s['dir']==0 ],
-#            [ s for s in route if s['dir']==1 ]
-#        ]
-#        if to_fro < 2:
-#            route = rt_to_fro[to_fro]
-#        elif to_fro == 3:
-#            route = merge_dir(rt_to_fro[0], rt_to_fro[1])
-#    else:
     ans = query(f'Bus/StopOfRoute/City/{city_ename(city)}/{srt_name}')
     # 例如台北 "307"， 在 tdx api 裡面會撈到
     # 307莒光往板橋前站、 307莒光往撫遠街、 307西藏往板橋前站(停駛)、 307西藏往撫遠街(停駛)、 307西藏往板橋前站、 307西藏往撫遠街、
@@ -151,8 +125,9 @@ def bus_stops(city, srt_name, to_fro=3):
     if len(route) > 2:
         # 例如新北 243
         route = list(filter(lambda r: r['SubRouteName']['Zh_tw']==srt_name, route))
-    assert(len(route)<=2)
-    if route[0]['Direction']==1:
+    # if len(route) == 0: return []
+    assert(len(route) <= 2)
+    if route[0]['Direction']==1 and len(route)>1:
         route = [ route[1], route[0] ]
     if len(route) < 2 : to_fro = 0
     if to_fro < 2:

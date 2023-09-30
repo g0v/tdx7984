@@ -94,37 +94,52 @@ def bus_stop(city, stopname):
     city_ename = tdx.city_ename(city)
     sqcon = sqlite3.connect(G['args'].dbpath)
     sqcursor = sqcon.cursor()
+    # 先不篩選縣市。 一個站牌 - 例如 「重慶南路一段」 -
+    # 可能會有來自不同縣市的路線經過。
+    # 例如在 243 線上本站稱為 NWT34514，
+    # 但在 670 線上本站稱為 TPE38456 =>
+    # 第一輪篩選站牌中文名稱， 第二輪篩選 station_id。
     sqcursor.execute(
-        'select stop.uid, stop.cname, stop.srt_uid, subroute.cname, stop.dir from stop join subroute on stop.srt_uid=subroute.uid where stop.cname=?', (stopname,)
+        'select uid, station_id from stop where cname=?', (stopname,)
     )
-    stops = []
+    stations = {}
     for st_of_srt in sqcursor.fetchall():
-        st_of_srt = dict(zip(['stop_uid', 'cname', 'srt_uid', 'srt_cname', 'dir'], st_of_srt))
-        city_code = st_of_srt['stop_uid'][:3]
+        (stop_uid, station_id) = st_of_srt
+        city_code = stop_uid[:3]
         if tdx.city_list['by_code'][city_code]['ename'] == city_ename:
-            stops.append(st_of_srt)
+            stations[station_id] = True
+    stations = list(stations.keys())
+    sqcursor.execute(
+        'select stop.uid, stop.cname, stop.srt_uid, subroute.cname, stop.dir, stop.station_id from stop join subroute on stop.srt_uid=subroute.uid where stop.cname=? and stop.station_id in ('+','.join(['?']*len(stations))+')', [stopname]+stations
+    )
+    stops = [
+        dict(zip(['stop_uid', 'cname', 'srt_uid', 'srt_cname', 'dir', 'stn_id'], st)) for st in sqcursor.fetchall()
+    ]
     sqcon.close()
+    stations = {}
     visited = {}
     all_est = []
     # 一開始先按照 rtname 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
     for st in stops:
         rtname = st['srt_cname']
+        this_srt_city_code = st['srt_uid'][:3]
+        this_srt_city_ename = tdx.city_list['by_code'][this_srt_city_code]['ename']
+        print(rtname)
         # 每一個站牌名稱可能有兩個 (方向的) 估計到站時刻
         if rtname in visited: continue
         visited[rtname] = True
-        raw_est = list( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{city_ename}/{rtname}') )
+        raw_est = list( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{this_srt_city_ename}/{rtname}') )
         if len(raw_est) < 1: continue
         # 新北 243寵物公車
-        if not 'StopSequence' in raw_est[0]:
-            # 台北的估計到站時刻資訊不含 StopSequence
-            tdx.query(f'Bus/EstimatedTimeOfArrival/City/{city_ename}/{rtname}')
-            stops_this_route = tdx.bus_stops(city_ename, rtname, to_fro=2)
-            seq_by_stopuid = dict([ (st['properties']['StopUID'], st['properties']['StopSequence']) for st in stops_this_route ])
+        # 台北的估計到站時刻資訊不含 StopSequence
+        # 台中的不含 StationID， 都需要讀取靜態資訊來補充
+        stops_this_route = tdx.bus_stops(this_srt_city_ename, rtname, to_fro=2)
+        stop_info_by_uid = dict([ (st['properties']['StopUID'], st['properties']) for st in stops_this_route ])
         # 台中跟台北的 StopSequence (方向) 定義不同。
         # 保留同一路線上其他站的預估到站資訊， 才好找 「下一站」。
         rt_est = []     # 一條路線的 (最多) 兩筆預估記錄
         for est in raw_est:
-            # 台北市沒有 SubRouteID？ 例如 243、 307
+            # 台北市沒有 SubRouteID
             if 'SubRouteName' in est:
                 if est['SubRouteName']['Zh_tw'] != rtname: continue
             else:
@@ -132,15 +147,9 @@ def bus_stop(city, stopname):
                 est['SubRouteName'] = est['RouteName']
             est['EstimateTime'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
             if not 'StopSequence' in est:
-                # 台北市的 EstimatedTimeOfArrival 好像都沒有 StopSequence
-                # sqcon = sqlite3.connect(G['args'].dbpath)
-                # sqcursor = sqcon.cursor()
-                # sqcursor.execute(
-                #     'select sequence from stop where uid=?', (est['StopUID'],)
-                # )
-                # est['StopSequence'] = sqcursor.fetchone()[0]
-                # sqcon.close()
-                est['StopSequence'] = seq_by_stopuid[est['StopUID']]
+                est['StopSequence'] = stop_info_by_uid[est['StopUID']]['StopSequence']
+            if not 'StationID' in est:
+                est['StationID'] = stop_info_by_uid[est['StopUID']]['StationID']
             rt_est.append(est)
         est = find_stop_fill_next(stopname, 0, rt_est)
         if est is not None: all_est.append(est)
