@@ -74,6 +74,8 @@ def find_stop_fill_next(stopname, dir, rt_est):
         if samedir[i]['StopName']['Zh_tw'] == stopname: break
     if i >= len(samedir): return None
     focus = i
+    city_code = samedir[focus]['RouteUID'][:3]
+    samedir[focus]['rte_city'] = tdx.city_list['by_code'][city_code]['ename']
     if not 'PlateNumb' in samedir[0]:
         # 台北市的 EstimatedTimeOfArrival 沒有 PlateNumb
         samedir[focus]['nextstop'] = samedir[focus+1 if focus+1<len(samedir) else focus]['StopName']['Zh_tw']
@@ -86,6 +88,7 @@ def find_stop_fill_next(stopname, dir, rt_est):
                 samedir[focus]['nextstop'] = samedir[focus-1 if focus>0 else 0]['StopName']['Zh_tw']
             break
     if not 'nextstop' in samedir[focus]: return None
+    # print(json.dumps(samedir[focus], ensure_ascii=False))
     return samedir[focus]
 
 @app.route('/bus/stop/<city>/<stopname>.html')
@@ -139,7 +142,7 @@ def bus_stop(city, stopname):
         # 保留同一路線上其他站的預估到站資訊， 才好找 「下一站」。
         rt_est = []     # 一條路線的 (最多) 兩筆預估記錄
         for est in raw_est:
-            # 台北市沒有 SubRouteID
+            # 台北市沒有 SubRouteName
             if 'SubRouteName' in est:
                 if est['SubRouteName']['Zh_tw'] != rtname: continue
             else:
