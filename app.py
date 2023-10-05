@@ -101,6 +101,7 @@ def bus_stop(city, stopname):
     # 可能會有來自不同縣市的路線經過。
     # 例如在 243 線上本站稱為 NWT34514，
     # 但在 670 線上本站稱為 TPE38456 =>
+    # 藍28 TPE196974 =>
     # 第一輪篩選站牌中文名稱， 第二輪篩選 station_id。
     sqcursor.execute(
         'select uid, station_id from stop where cname=?', (stopname,)
@@ -149,10 +150,16 @@ def bus_stop(city, stopname):
                 if est['RouteName']['Zh_tw'] != rtname: continue
                 est['SubRouteName'] = est['RouteName']
             est['EstimateTime'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
-            if not 'StopSequence' in est:
-                est['StopSequence'] = stop_info_by_uid[est['StopUID']]['StopSequence']
-            if not 'StationID' in est:
-                est['StationID'] = stop_info_by_uid[est['StopUID']]['StationID']
+            if est['StopUID'] in stop_info_by_uid:
+                if not 'StopSequence' in est:
+                    est['StopSequence'] = stop_info_by_uid[est['StopUID']]['StopSequence']
+                if not 'StationID' in est:
+                    est['StationID'] = stop_info_by_uid[est['StopUID']]['StationID']
+            else:
+                # 台北 藍28、
+                est['StopSequence'] = 999
+                est['StationID'] = ''
+                print(f'不存在的 StopUID： { est["StopUID"] } ({est["SubRouteName"]})')
             rt_est.append(est)
         est = find_stop_fill_next(stopname, 0, rt_est)
         if est is not None: all_est.append(est)

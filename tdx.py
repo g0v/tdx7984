@@ -50,9 +50,14 @@ def load_credential():
 
 def query(qs):
     global G
-    response = requests.get(f'https://tdx.transportdata.tw/api/basic/v2/{qs}', headers=G['headers']).json()
+    try:
+        response = requests.get(f'https://tdx.transportdata.tw/api/basic/v2/{qs}', headers=G['headers'], timeout=5).json()
+    except Exception as ex:
+        # https://stackoverflow.com/a/9824050
+        print(type(ex).__name__, ex.args)
+        return []
     if type(response) is dict and 'Not Found' in response['message']:
-        response = []
+        return []
     return response
 
 def geojify(point, coord_path='', name_path=''):
@@ -158,7 +163,12 @@ def bus_est(city, srt_name):
             continue
         est_1 = stop
         if not 'StopSequence' in stop:
-            stop['StopSequence'] = stop_info[stop['StopUID']]['properties']['StopSequence']
+            if stop['StopUID'] in stop_info:
+                stop['StopSequence'] = stop_info[stop['StopUID']]['properties']['StopSequence']
+            else:
+                # 台北 藍28、
+                stop['StopSequence'] = 999
+                print(f'不存在的 StopUID： { stop["StopUID"] } ({srt_name})')
         if stop['Direction'] == 0 :
             est_to.append(est_1)
         else:
