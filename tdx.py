@@ -1,5 +1,6 @@
 import requests, json, os, csv, re
 from operator import itemgetter
+from warnings import warn
 
 city_list = {
     'by_code': {}, 'by_cname': {}, 'by_ename': {}
@@ -143,6 +144,14 @@ def bus_stops(city, srt_name, to_fro=3):
         route = [ s for srt in route for s in srt['Stops'] ]
     return [geojify(s, name_path='StopName/Zh_tw', coord_path='StopPosition') for s in route]
 
+def lookup_by_stopuid(uid, table, key, default='', rtname=''):
+    if uid in table:
+        return table[uid][key]
+    else:
+        # 台北 藍28
+        warn(f'不存在的 StopUID： {uid} [{rtname}]')
+        return default
+
 def bus_est(city, srt_name):
     # https://motc-ptx.gitbook.io/tdx-zi-liao-shi-yong-kui-hua-bao-dian/data_notice/public_transportation_data/bus_static_data 站牌、站位與組站位間之差異
     ans = query(f'Bus/EstimatedTimeOfArrival/City/{city_ename(city)}/{srt_name}')
@@ -150,8 +159,8 @@ def bus_est(city, srt_name):
     n = len(list(filter(lambda r: 'StopSequence' in r, ans)))
     if float(n)/len(ans)<0.2:
         # 台北市的 EstimatedTimeOfArrival 好像都沒有 StopSequence
-        stop_info = dict(
-            (s['properties']['StopUID'], s) for s in bus_stops(city, srt_name, to_fro=2)
+        stop_info_by_uid = dict(
+            (s['properties']['StopUID'], s['properties']) for s in bus_stops(city, srt_name, to_fro=2)
         )
     est_to = [] ; est_fro = []
 #    print(json.dumps(ans, ensure_ascii=False))
@@ -163,12 +172,7 @@ def bus_est(city, srt_name):
             continue
         est_1 = stop
         if not 'StopSequence' in stop:
-            if stop['StopUID'] in stop_info:
-                stop['StopSequence'] = stop_info[stop['StopUID']]['properties']['StopSequence']
-            else:
-                # 台北 藍28、
-                stop['StopSequence'] = 999
-                print(f'不存在的 StopUID： { stop["StopUID"] } ({srt_name})')
+            stop['StopSequence'] = lookup_by_stopuid(stop['StopUID'], stop_info_by_uid, 'StopSequence', default=999, rtname=srt_name)
         if stop['Direction'] == 0 :
             est_to.append(est_1)
         else:

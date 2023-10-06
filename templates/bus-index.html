@@ -1,0 +1,22 @@
+<html>
+<head>
+<meta charset="UTF-8" />
+<link type="text/css" rel="stylesheet" href="{{ url_for('static',filename='tdx.css') }}" />
+</head>
+<body>
+    <h1>縣市列表</h1>
+
+    <table border="1" align="center">
+	<tr><td>code <td>中文 <td>English
+	<tr>
+        {% for cname in city_list['by_cname'] %}
+        <tr>
+            <td>{{ city_list['by_cname'][cname]['code'] }}</td>
+	    <td><a href="/bus/all/{{ cname }}.html">{{cname}}</a></td>
+            <td>{{ city_list['by_cname'][cname]['ename'] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
+

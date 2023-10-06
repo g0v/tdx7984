@@ -1,0 +1,16 @@
+<html>
+<head>
+<meta charset="UTF-8" />
+<link type="text/css" rel="stylesheet" href="{{ url_for('static',filename='tdx.css') }}" />
+</head>
+<body>
+    <h1>{{ city }} 所有公車路線</h1>
+
+    <p>{% for route in all_routes %}
+	    <a href="/bus/rte/{{city}}/{{route}}.html">{{route}}</a>,
+       {% endfor %}
+
+    <p style="font-size: 70%">(這一頁很少需要用到， 所以亂亂的不整理無所謂啦。 直接用瀏覽器 「在本頁面搜尋」 的功能就好， 不需要 javascript 也很好用啊。)</p>
+</body>
+</html>
+

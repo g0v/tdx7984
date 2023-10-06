@@ -14,6 +14,20 @@ CORS(app)
 def hello():
     return 'This is a flask web server'
 
+@app.route('/bus/index.html')
+def bus_index():
+    return render_template('bus-index.html', city_list=tdx.city_list)
+
+@app.route('/bus/all/<city>.html')
+def bus_all(city):
+    sqcon = sqlite3.connect(G['args'].dbpath)
+    sqcursor = sqcon.cursor()
+    sqcursor.execute(
+        'select cname from subroute where substr(uid,1,3)=?', (tdx.city_code(city),)
+    )
+    all_routes = list( [ x[0] for x in sqcursor.fetchall() ] )
+    return render_template('bus-all.html', city=city, all_routes=all_routes)
+
 @app.route('/geojson/bike/stations/<cities>')
 def bike_stations(cities):
     cities = cities.split('+')
@@ -123,43 +137,38 @@ def bus_stop(city, stopname):
     stations = {}
     visited = {}
     all_est = []
-    # 一開始先按照 rtname 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
+    # 一開始先按照 srt_name 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
     for st in stops:
-        rtname = st['srt_cname']
+        srt_name = st['srt_cname']
         this_srt_city_code = st['srt_uid'][:3]
         this_srt_city_ename = tdx.city_list['by_code'][this_srt_city_code]['ename']
-        print(rtname)
+        print(srt_name)
         # 每一個站牌名稱可能有兩個 (方向的) 估計到站時刻
-        if rtname in visited: continue
-        visited[rtname] = True
-        raw_est = list( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{this_srt_city_ename}/{rtname}') )
+        if srt_name in visited: continue
+        visited[srt_name] = True
+        raw_est = list( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{this_srt_city_ename}/{srt_name}') )
         if len(raw_est) < 1: continue
         # 新北 243寵物公車
         # 台北的估計到站時刻資訊不含 StopSequence
         # 台中的不含 StationID， 都需要讀取靜態資訊來補充
-        stops_this_route = tdx.bus_stops(this_srt_city_ename, rtname, to_fro=2)
-        stop_info_by_uid = dict([ (st['properties']['StopUID'], st['properties']) for st in stops_this_route ])
+        stop_info_by_uid = dict(
+            (s['properties']['StopUID'], s['properties']) for s in tdx.bus_stops(this_srt_city_ename, srt_name, to_fro=2)
+        )
         # 台中跟台北的 StopSequence (方向) 定義不同。
         # 保留同一路線上其他站的預估到站資訊， 才好找 「下一站」。
         rt_est = []     # 一條路線的 (最多) 兩筆預估記錄
         for est in raw_est:
             # 台北市沒有 SubRouteName
             if 'SubRouteName' in est:
-                if est['SubRouteName']['Zh_tw'] != rtname: continue
+                if est['SubRouteName']['Zh_tw'] != srt_name: continue
             else:
-                if est['RouteName']['Zh_tw'] != rtname: continue
+                if est['RouteName']['Zh_tw'] != srt_name: continue
                 est['SubRouteName'] = est['RouteName']
             est['EstimateTime'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
-            if est['StopUID'] in stop_info_by_uid:
-                if not 'StopSequence' in est:
-                    est['StopSequence'] = stop_info_by_uid[est['StopUID']]['StopSequence']
-                if not 'StationID' in est:
-                    est['StationID'] = stop_info_by_uid[est['StopUID']]['StationID']
-            else:
-                # 台北 藍28、
-                est['StopSequence'] = 999
-                est['StationID'] = ''
-                print(f'不存在的 StopUID： { est["StopUID"] } ({est["SubRouteName"]})')
+            if not 'StopSequence' in est:
+                est['StopSequence'] = tdx.lookup_by_stopuid(est['StopUID'], stop_info_by_uid, 'StopSequence', default=999, rtname=srt_name)
+            if not 'StationID' in est:
+                est['StationID'] = tdx.lookup_by_stopuid(est['StopUID'], stop_info_by_uid, 'StationID')
             rt_est.append(est)
         est = find_stop_fill_next(stopname, 0, rt_est)
         if est is not None: all_est.append(est)
