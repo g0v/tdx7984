@@ -133,6 +133,10 @@ def bus_stops(city, srt_name, to_fro=3):
         route = list(filter(lambda r: r['SubRouteName']['Zh_tw']==srt_name, route))
     # if len(route) == 0: return []
     assert(len(route) <= 2)
+    if len(route) == 0:
+        # select stop.uid, stop.cname, stop.srt_uid, subroute.cname, stop.dir, stop.station_id from stop join subroute on stop.srt_uid=s ubroute.uid where stop.cname="第三市場" and substr(stop.uid,1,3)="TXG"
+        # => 出現不存在的 48 路
+        return []
     if route[0]['Direction']==1 and len(route)>1:
         route = [ route[1], route[0] ]
     if len(route) < 2 : to_fro = 0

@@ -14,11 +14,12 @@ CORS(app)
 def hello():
     return 'This is a flask web server'
 
-@app.route('/bus/index.html')
+@app.route('/bus')
+@app.route('/bus/')
 def bus_index():
     return render_template('bus-index.html', city_list=tdx.city_list)
 
-@app.route('/bus/all/<city>.html')
+@app.route('/bus/routes/<city>')
 def bus_all(city):
     sqcon = sqlite3.connect(G['args'].dbpath)
     sqcursor = sqcon.cursor()
@@ -26,7 +27,7 @@ def bus_all(city):
         'select cname from subroute where substr(uid,1,3)=?', (tdx.city_code(city),)
     )
     all_routes = list( [ x[0] for x in sqcursor.fetchall() ] )
-    return render_template('bus-all.html', city=city, all_routes=all_routes)
+    return render_template('city-routes.html', city=city, all_routes=all_routes)
 
 @app.route('/geojson/bike/stations/<cities>')
 def bike_stations(cities):
@@ -49,7 +50,7 @@ def gj_bus_pos(city, rtname):
 def gj_bus_est(city, rtname):
     return jsonify( tdx.bus_est(city, rtname) )
 
-@app.route('/bus/rte/<city>/<rtname>.html')
+@app.route('/bus/rte/<city>/<rtname>')
 def bus_rte(city, rtname):
     est = tdx.bus_est(city, rtname)
     empty = { 'StopSequence': '', 'est': '', 'EstimateTime': '', '': 'PlateNumb' }
@@ -105,7 +106,7 @@ def find_stop_fill_next(stopname, dir, rt_est):
     # print(json.dumps(samedir[focus], ensure_ascii=False))
     return samedir[focus]
 
-@app.route('/bus/stop/<city>/<stopname>.html')
+@app.route('/bus/stop/<city>/<stopname>')
 def bus_stop(city, stopname):
     global G
     city_ename = tdx.city_ename(city)

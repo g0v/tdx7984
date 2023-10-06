@@ -12,7 +12,7 @@
         {% for cname in city_list['by_cname'] %}
         <tr>
             <td>{{ city_list['by_cname'][cname]['code'] }}</td>
-	    <td><a href="/bus/all/{{ cname }}.html">{{cname}}</a></td>
+	    <td><a href="/bus/routes/{{ cname }}">{{cname}}</a></td>
             <td>{{ city_list['by_cname'][cname]['ename'] }}</td>
         </tr>
         {% endfor %}

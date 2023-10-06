@@ -15,7 +15,7 @@
             <td>{{ stop['StopUID'] }}</td>
             <td>{{ stop['nextstop'] }}</td>
             <td>{{ stop['EstimateTime'] | int }}</td>
-	    <td><a href="/bus/rte/{{ stop['rte_city'] }}/{{ stop['SubRouteName']['Zh_tw'] }}.html">{{ stop['SubRouteName']['Zh_tw'] }}</a></td>
+	    <td><a href="/bus/rte/{{ stop['rte_city'] }}/{{ stop['SubRouteName']['Zh_tw'] }}">{{ stop['SubRouteName']['Zh_tw'] }}</a></td>
             <td>{{ stop['PlateNumb'] }}</td>
         </tr>
         {% endfor %}
