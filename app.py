@@ -60,17 +60,17 @@ def bus_rte(city, rtname):
     for s in est:
         if 'dir0' in s:
             if 'EstimateTime' in s['dir0']:
-                s['dir0']['est'] = int(s['dir0']['EstimateTime']/60) if s['dir0']['EstimateTime'] >= 0 else 9999
+                s['dir0']['est_min'] = int(s['dir0']['EstimateTime']/60) if s['dir0']['EstimateTime'] >= 0 else 9999
             else:
-                s['dir0']['est'] = '-'
+                s['dir0']['est_min'] = '-'
 #            if not 'PlateNumb' in s['dir0']: s['dir0']['PlateNumb'] = ''
         else:
             s['dir0'] = empty
         if 'dir1' in s:
             if 'EstimateTime' in s['dir1']:
-                s['dir1']['est'] = int(s['dir1']['EstimateTime']/60) if s['dir1']['EstimateTime'] >= 0 else 9999
+                s['dir1']['est_min'] = int(s['dir1']['EstimateTime']/60) if s['dir1']['EstimateTime'] >= 0 else 9999
             else:
-                s['dir1']['est'] = '-'
+                s['dir1']['est_min'] = '-'
 #            if not 'PlateNumb' in s['dir1']: s['dir1']['PlateNumb'] = ''
         else:
             s['dir1'] = empty
@@ -99,8 +99,8 @@ def find_stop_fill_next(stopname, dir, rt_est):
         samedir[focus]['nextstop'] = samedir[focus+1 if focus+1<len(samedir) else focus]['StopName']['Zh_tw']
         return samedir[focus]
     for i in range(len(samedir)-1):
-        if samedir[i]['PlateNumb'] == samedir[i+1]['PlateNumb'] and samedir[i]['EstimateTime'] != samedir[i+1]['EstimateTime']:
-            if samedir[i]['EstimateTime'] < samedir[i+1]['EstimateTime']:
+        if samedir[i]['PlateNumb'] == samedir[i+1]['PlateNumb'] and samedir[i]['est_min'] != samedir[i+1]['est_min']:
+            if samedir[i]['est_min'] < samedir[i+1]['est_min']:
                 samedir[focus]['nextstop'] = samedir[focus+1 if focus+1 < len(samedir) else focus]['StopName']['Zh_tw']
             else:
                 samedir[focus]['nextstop'] = samedir[focus-1 if focus>0 else 0]['StopName']['Zh_tw']
@@ -146,7 +146,7 @@ def bus_stop(city, stopname):
         srt_name = st['srt_cname']
         this_srt_city_code = st['srt_uid'][:3]
         this_srt_city_ename = tdx.city_list['by_code'][this_srt_city_code]['ename']
-        print(srt_name)
+        print(srt_name, end=', ', flush=True)
         # 每一個站牌名稱可能有兩個 (方向的) 估計到站時刻
         if srt_name in visited: continue
         visited[srt_name] = True
@@ -168,7 +168,7 @@ def bus_stop(city, stopname):
             else:
                 if est['RouteName']['Zh_tw'] != srt_name: continue
                 est['SubRouteName'] = est['RouteName']
-            est['EstimateTime'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
+            est['est_min'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
             if not 'StopSequence' in est:
                 est['StopSequence'] = tdx.lookup_by_stopuid(est['StopUID'], stop_info_by_uid, 'StopSequence', default=999, rtname=srt_name)
             if not 'StationID' in est:
@@ -178,7 +178,8 @@ def bus_stop(city, stopname):
         if est is not None: all_est.append(est)
         est = find_stop_fill_next(stopname, 1, rt_est)
         if est is not None: all_est.append(est)
-    all_est = sorted(all_est, key=operator.itemgetter('nextstop','EstimateTime'))
+    print('')
+    all_est = sorted(all_est, key=operator.itemgetter('nextstop','est_min'))
     return render_template('stop-est.html', city=city, stopname=stopname, est=all_est)
 
 if __name__ == '__main__':
