@@ -57,8 +57,12 @@ def query(qs):
         # https://stackoverflow.com/a/9824050
         print(type(ex).__name__, ex.args)
         return []
-    if type(response) is dict and 'Not Found' in response['message']:
-        return []
+    if type(response) is dict:
+        msg = response['message'] if 'message' in response else response['Message']
+        if 'Not Found' in msg or 'not accepted' in msg:
+            # 南投沒有 ubike
+            warn(json.dumps(response, ensure_ascii=False))
+            return []
     return response
 
 def geojify(point, coord_path='', name_path=''):
@@ -110,16 +114,12 @@ def merge_dir(stops_to, stops_fro, keep_dup=False):
     ans += stops_to[i_to:] + stops_fro[i_fro:]
     return ans
 
-def bike_stations(city):
-    ans = query(f'/Bike/Station/City/{city_ename(city)}')
-    return [geojify(b, name_path='StationName/Zh_tw', coord_path='StationPosition') for b in ans]
-
 def bus_pos(city, srt_name, to_fro=2):
     # to_fro: 0 去程 / 1 回程 / 2 全部
     ans = query(f'Bus/RealTimeByFrequency/City/{city_ename(city)}/{srt_name}')
     if to_fro < 2:
         ans = [ b for b in ans if b['Direction']==to_fro ]
-    return [geojify(b, name_path='PlateNumb', coord_path='BusPosition') for b in ans]
+    return ans
 
 def bus_stops(city, srt_name, to_fro=3):
     # to_fro: 0 去程 / 1 回程 / 2 全部 / 3 聯集， 刪除重複
@@ -146,7 +146,7 @@ def bus_stops(city, srt_name, to_fro=3):
         route = merge_dir(route[0]['Stops'], route[1]['Stops'])
     else:
         route = [ s for srt in route for s in srt['Stops'] ]
-    return [geojify(s, name_path='StopName/Zh_tw', coord_path='StopPosition') for s in route]
+    return route
 
 def lookup_by_stopuid(uid, table, key, default='', rtname=''):
     if uid in table:
@@ -164,7 +164,7 @@ def bus_est(city, srt_name):
     if float(n)/len(ans)<0.2:
         # 台北市的 EstimatedTimeOfArrival 好像都沒有 StopSequence
         stop_info_by_uid = dict(
-            (s['properties']['StopUID'], s['properties']) for s in bus_stops(city, srt_name, to_fro=2)
+            (s['StopUID'], s) for s in bus_stops(city, srt_name, to_fro=2)
         )
     est_to = [] ; est_fro = []
 #    print(json.dumps(ans, ensure_ascii=False))

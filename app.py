@@ -34,17 +34,20 @@ def bike_stations(cities):
     cities = cities.split('+')
     res = []
     for ct in cities:
-        res += tdx.bike_stations(ct) 
-    return jsonify( res )
+        res += tdx.query(f'/Bike/Station/City/{tdx.city_ename(ct)}')
+    return jsonify( [tdx.geojify(b, name_path='StationName/Zh_tw', coord_path='StationPosition') for b in res] )
 
 @app.route('/geojson/bus/stops/<city>/<rtname>')
 @app.route('/geojson/bus/stops/<city>/<int:to_fro>/<rtname>')
 def gj_bus_stops(city, rtname, to_fro=2):
-    return jsonify( tdx.bus_stops(city, rtname, to_fro) )
+    res = tdx.bus_stops(city, rtname, to_fro)
+    return jsonify( [tdx.geojify(b, name_path='StopName/Zh_tw', coord_path='StopPosition') for b in res] )
 
 @app.route('/geojson/bus/pos/<city>/<rtname>')
 def gj_bus_pos(city, rtname):
-    return jsonify( tdx.bus_pos(city, rtname) )
+    return jsonify( [
+        tdx.geojify(b, name_path='PlateNumb', coord_path='BusPosition') for b in tdx.bus_pos(city, rtname)
+    ] )
 
 @app.route('/geojson/bus/est/<city>/<rtname>')
 def gj_bus_est(city, rtname):
@@ -153,7 +156,7 @@ def bus_stop(city, stopname):
         # 台北的估計到站時刻資訊不含 StopSequence
         # 台中的不含 StationID， 都需要讀取靜態資訊來補充
         stop_info_by_uid = dict(
-            (s['properties']['StopUID'], s['properties']) for s in tdx.bus_stops(this_srt_city_ename, srt_name, to_fro=2)
+            (s['StopUID'], s) for s in tdx.bus_stops(this_srt_city_ename, srt_name, to_fro=2)
         )
         # 台中跟台北的 StopSequence (方向) 定義不同。
         # 保留同一路線上其他站的預估到站資訊， 才好找 「下一站」。
