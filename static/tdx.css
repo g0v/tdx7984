@@ -1,6 +1,7 @@
 body { color: #000; background: #ffd; }
 
 .center { text-indent: 0; text-align: center; }
+.right { text-indent: 0; text-align: right; }
 
 h1 { text-align: center; }
 
