@@ -2,6 +2,7 @@
 <head>
 <meta charset="UTF-8" />
 <link type="text/css" rel="stylesheet" href="{{ url_for('static',filename='tdx.css') }}" />
+<title>tdx7984 "去坐巴士"</title>
 </head>
 <body>
     <h1>{{ rtname }} @ {{ city }}</h1>
@@ -12,8 +13,7 @@
     如果 dict 裡面找不到想要的 key， 並不會出錯， 就印空字串， 這一點很方便。
     -->
     <table border="1" align="center">
-	<tr> <td>順序 <td>車牌 <td>預估 <td>站名 <td>預估 <td>車牌 <td>順序
-	<tr>
+	<tr> <th>順序 <th>車牌 <th>預估 <th>站名 <th>預估 <th>車牌 <th>順序
         {% for stop in est %}
         <tr>
             <td>{{ stop['dir0']['StopSequence'] }}</td>

@@ -1,5 +1,5 @@
 # apt install python3-flask python3-flask-cors python3-apscheduler
-import tdx, time, atexit, os, sqlite3, argparse, csv, re, operator
+import tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json
 from flask import Flask, jsonify, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
@@ -76,6 +76,15 @@ def bus_rte(city, rtname):
             s['dir1'] = empty
     return render_template('route-est.html', city=city, rtname=rtname, est=est)
 
+def position_diff(tail, head):
+    # 從兩點的經緯度計算 x 座標差與 y 座標差 (單位： 公尺)
+    head = head['StopPosition']
+    tail = tail['StopPosition']
+    dy = (tail['PositionLat'] - head['PositionLat']) * 4e7 / 360
+    dx = (tail['PositionLon'] - head['PositionLon']) * 4.0075e7 / 360
+    dx *= math.cos( (tail['PositionLat']+head['PositionLat'])/2/180*math.pi )
+    return (dx, dy)
+
 def find_stop_fill_next(stopname, dir, rt_est):
     # 在 rt_est 某路線預估清單裡面找到站名為 stopname、
     # 方向為 dir 的那一筆， 並且幫它建立 'nextstop' 欄位，
@@ -96,17 +105,18 @@ def find_stop_fill_next(stopname, dir, rt_est):
     samedir[focus]['rte_city'] = tdx.city_list['by_code'][city_code]['ename']
     if not 'PlateNumb' in samedir[0]:
         # 台北市的 EstimatedTimeOfArrival 沒有 PlateNumb
-        samedir[focus]['nextstop'] = samedir[focus+1 if focus+1<len(samedir) else focus]['StopName']['Zh_tw']
+        samedir[focus]['nextstop'] = samedir[focus+1 if focus+1<len(samedir) else focus]
         return samedir[focus]
     for i in range(len(samedir)-1):
         if samedir[i]['PlateNumb'] == samedir[i+1]['PlateNumb'] and samedir[i]['est_min'] != samedir[i+1]['est_min']:
             if samedir[i]['est_min'] < samedir[i+1]['est_min']:
-                samedir[focus]['nextstop'] = samedir[focus+1 if focus+1 < len(samedir) else focus]['StopName']['Zh_tw']
+                samedir[focus]['nextstop'] = samedir[focus+1 if focus+1 < len(samedir) else focus]
             else:
-                samedir[focus]['nextstop'] = samedir[focus-1 if focus>0 else 0]['StopName']['Zh_tw']
+                samedir[focus]['nextstop'] = samedir[focus-1 if focus>0 else 0]
             break
     if not 'nextstop' in samedir[focus]: return None
-    # print(json.dumps(samedir[focus], ensure_ascii=False))
+    samedir[focus]['next_vector'] = position_diff(samedir[focus]['nextstop'], samedir[focus])
+    samedir[focus]['nextstop'] = samedir[focus]['nextstop']['StopName']['Zh_tw']
     return samedir[focus]
 
 @app.route('/bus/stop/<city>/<stopname>')
@@ -173,6 +183,8 @@ def bus_stop(city, stopname):
                 est['StopSequence'] = tdx.lookup_by_stopuid(est['StopUID'], stop_info_by_uid, 'StopSequence', default=999, rtname=srt_name)
             if not 'StationID' in est:
                 est['StationID'] = tdx.lookup_by_stopuid(est['StopUID'], stop_info_by_uid, 'StationID')
+            if est['StopUID'] in stop_info_by_uid:
+                est['StopPosition'] = stop_info_by_uid[est['StopUID']]['StopPosition']
             rt_est.append(est)
         est = find_stop_fill_next(stopname, 0, rt_est)
         if est is not None: all_est.append(est)

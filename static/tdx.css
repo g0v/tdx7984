@@ -3,11 +3,33 @@ body { color: #000; background: #ffd; }
 .center { text-indent: 0; text-align: center; }
 .right { text-indent: 0; text-align: right; }
 
+/* https://www.geeksforgeeks.org/how-to-create-an-html-checkbox-with-a-clickable-label/ */
+
+input[type=checkbox] { display: none }
+.for-checkbox {
+    background-color: #eec;
+    /* color: green; */
+    cursor: pointer;
+}
+
+.pos {
+    text-align: right;
+    font-size: 0%;
+}
+
+#pos-tgl:checked ~ table td.pos ,
+#pos-tgl:checked ~ table th.pos {
+    /* background: #8ff; */
+    font-size: 100%;
+}
+
 h1 { text-align: center; }
 
 table {
     border-collapse: collapse;
 }
+
+th { background-color: #eec; }
 
 table.center {
     margin: 0 auto;

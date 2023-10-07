@@ -2,13 +2,13 @@
 <head>
 <meta charset="UTF-8" />
 <link type="text/css" rel="stylesheet" href="{{ url_for('static',filename='tdx.css') }}" />
+<title>tdx7984 "去坐巴士"</title>
 </head>
 <body>
     <h1>縣市列表</h1>
 
     <table border="1" align="center">
-	<tr><td>code <td>中文 <td>English
-	<tr>
+	<tr><th>code <th>中文 <th>English
         {% for cname in city_list['by_cname'] %}
         <tr>
             <td>{{ city_list['by_cname'][cname]['code'] }}</td>

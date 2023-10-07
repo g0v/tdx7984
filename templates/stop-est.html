@@ -2,18 +2,26 @@
 <head>
 <meta charset="UTF-8" />
 <link type="text/css" rel="stylesheet" href="{{ url_for('static',filename='tdx.css') }}" />
+<title>tdx7984 "去坐巴士"</title>
 </head>
 <body>
     <h1>{{ stopname }} @ {{ city }}</h1>
 
+    <!-- https://stackoverflow.com/a/33528185
+	:target pseudo class is more powerful than the checkbox hack
+	since it can affect non-sibling -->
+	<p class="center"><label for="pos-tgl" class="for-checkbox">相對座標</label></p>
+	<input class="center" type="checkbox" id="pos-tgl" />
+
     <table border="1" align="center">
-	<tr><td>StnID <td>StopUID <td>下一站 <td>預估 <td>路線 <td>車牌
-	<tr>
+	<tr><th>StnID <th>StopUID <th>下一站 <th class="pos" >x <th class="pos" >y <th>預估 <th>路線 <th>車牌
         {% for stop in est %}
         <tr>
             <td>{{ stop['StationID'] }}</td>
             <td>{{ stop['StopUID'] }}</td>
             <td>{{ stop['nextstop'] }}</td>
+	    <td class="pos" >{{ stop['next_vector'][0] | int }}</td>
+	    <td class="pos" >{{ stop['next_vector'][1] | int }}</td>
             <td>{{ stop['est_min'] | int }}</td>
 	    <td><a href="/bus/rte/{{ stop['rte_city'] }}/{{ stop['SubRouteName']['Zh_tw'] }}">{{ stop['SubRouteName']['Zh_tw'] }}</a></td>
             <td>{{ stop['PlateNumb'] }}</td>
