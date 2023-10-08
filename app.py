@@ -194,6 +194,11 @@ def bus_stop(city, stopname):
     all_est = sorted(all_est, key=operator.itemgetter('nextstop','est_min'))
     return render_template('stop-est.html', city=city, stopname=stopname, est=all_est)
 
+@app.route('/bus/sched/<city>/<rtname>')
+def bus_sched(city, rtname):
+    dtt_all = tdx.query(f'Bus/DailyTimeTable/City/{tdx.city_ename(city)}/{rtname}')
+    return render_template('time-table.html', city=city, rtname=rtname, dtt_all=dtt_all)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='重新包裝少數幾個交通部的 tdx API， 以 geojson 或 html 網頁呈現',

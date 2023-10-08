@@ -23,10 +23,14 @@ input[type=checkbox] { display: none }
     font-size: 100%;
 }
 
+#pos-tgl:checked ~ p #lb-pos-tgl { background-color: #fff; }
+
 h1 { text-align: center; }
 
 table {
     border-collapse: collapse;
+    margin-left: 3em;
+    margin-right: 3em;
 }
 
 th { background-color: #eec; }

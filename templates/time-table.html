@@ -1,0 +1,34 @@
+<html>
+<head>
+<meta charset="UTF-8" />
+<link type="text/css" rel="stylesheet" href="{{ url_for('static',filename='tdx.css') }}" />
+<title>tdx7984 "去坐巴士"</title>
+</head>
+<body>
+    <h1>{{ rtname }} 時刻表 @ {{ city }}</h1>
+
+    <p class="center"><a href="/bus/rte/{{ city }}/{{ rtname }}">預估到站時間</a></p>
+    {% if dtt_all | length == 0 %}
+	<p>(本頁面如果是空的， 可能是因為這個縣市沒有提供精簡的發車時刻表)</p>
+    {% else %}
+	<div id="container" style="display: flex; justify-content: center;" >
+
+	{% for route in dtt_all %}
+	<div>
+	    <h3 style="text-align: center">{{route['Timetables'][0]['StopTimes'][0]['StopName']['Zh_tw']}}</h2>
+	    <table border=1>
+	    <tr><th>發車時刻</th>
+	    {% for item in route['Timetables'] %}
+	    <tr><td>{{ item['StopTimes'][0]['DepartureTime'] }}
+	    {% endfor %}
+	    </table>
+	</div>
+	{% endfor %}
+
+	</div>
+    {% endif %}
+
+    {% include "footer.html" %}
+</body>
+</html>
+

@@ -10,10 +10,10 @@
     <!-- https://stackoverflow.com/a/33528185
 	:target pseudo class is more powerful than the checkbox hack
 	since it can affect non-sibling -->
-	<p class="center"><label for="pos-tgl" class="for-checkbox">相對座標</label></p>
 	<input class="center" type="checkbox" id="pos-tgl" />
+	<p class="center"><label for="pos-tgl" id="lb-pos-tgl" class="for-checkbox">相對座標</label></p>
 
-    <table border="1" align="center">
+    <table border="1" class="center">
 	<tr><th>StnID <th>StopUID <th>下一站 <th class="pos" >x <th class="pos" >y <th>預估 <th>路線 <th>車牌
         {% for stop in est %}
         <tr>
