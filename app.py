@@ -1,19 +1,22 @@
 # apt install python3-flask python3-flask-cors python3-apscheduler
 import logging, tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json
+from datetime import datetime
 from flask import Flask, jsonify, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
+from werkzeug.serving import WSGIRequestHandler, _log
 
 G = {
 }
 
-logging.basicConfig(
-    filename=os.environ['HOME']+'/log/tdx7984.log',
-    level=logging.INFO,
-    # format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s',
-    format='%(levelname)s %(message)s',
-    datefmt='%m/%d %H:%M:%S',
-)
+# https://stackoverflow.com/questions/36299494/how-to-remove-the-from-flasks-logging
+class MyRequestHandler(WSGIRequestHandler):
+    def log(self, type, message, *args):
+        _log(type, '%s %s\n' % (
+            self.address_string(),
+            message % args)
+        )
+
 app = Flask(__name__)
 CORS(app)
 
@@ -159,6 +162,7 @@ def bus_stop(city, stopname):
     visited = {}
     all_est = []
     # 一開始先按照 srt_name 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
+    print(datetime.now().strftime('%m/%d %H:%M:%S'), f'{stopname} ', end='')
     for st in stops:
         srt_name = st['srt_cname']
         this_srt_city_code = st['srt_uid'][:3]
@@ -213,11 +217,24 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dbpath', type=str,
         default='',
         help='全國所有縣市公車路線與站牌資料庫檔案')
+    parser.add_argument('-L', '--logpath', type=str,
+        default=os.environ['HOME']+'/log/tdx7984.log',
+        help='log 檔路徑')
     G['args'] = parser.parse_args()
     m = re.search(r'(.*)/', __file__)
     my_dir = m.group(1)
     if G['args'].dbpath == '':
         G['args'].dbpath = f'{my_dir}/routes_stops.sqlite3'
+
+    logging.basicConfig(
+        filename=G['args'].logpath,
+        level=logging.INFO,
+        # format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s',
+        format='%(asctime)s %(levelname)s %(message)s',
+        datefmt='%m/%d %H:%M:%S',
+    )
+    logger = logging.getLogger('werkzeug')
+    logger.setLevel(logging.INFO)
 
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=tdx.load_credential, trigger='interval', seconds=7200)
@@ -226,4 +243,10 @@ if __name__ == '__main__':
 
     # openssl req -x509 -newkey rsa:4096 -nodes -out flask-cert.pem -keyout flask-key.pem -days 36500
     # https://blog.miguelgrinberg.com/post/running-your-flask-application-over-https
-    app.run(host='0.0.0.0', port=7984, debug=True, ssl_context=(os.environ['HOME']+'/secret/flask-cert.pem', os.environ['HOME']+'/secret/flask-key.pem'))
+    app.run(
+        debug=True,
+        host='0.0.0.0',
+        port=7984,
+        request_handler=MyRequestHandler,
+        ssl_context=(os.environ['HOME']+'/secret/flask-cert.pem', os.environ['HOME']+'/secret/flask-key.pem')
+    )
