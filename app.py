@@ -1,5 +1,5 @@
 # apt install python3-flask python3-flask-cors python3-apscheduler
-import tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json
+import logging, tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json
 from flask import Flask, jsonify, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
@@ -7,6 +7,13 @@ from flask_cors import CORS
 G = {
 }
 
+logging.basicConfig(
+    filename=os.environ['HOME']+'/log/tdx7984.log',
+    level=logging.INFO,
+    # format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s',
+    format='%(levelname)s %(message)s',
+    datefmt='%m/%d %H:%M:%S',
+)
 app = Flask(__name__)
 CORS(app)
 
@@ -156,9 +163,9 @@ def bus_stop(city, stopname):
         srt_name = st['srt_cname']
         this_srt_city_code = st['srt_uid'][:3]
         this_srt_city_ename = tdx.city_list['by_code'][this_srt_city_code]['ename']
-        print(srt_name, end=', ', flush=True)
         # 每一個站牌名稱可能有兩個 (方向的) 估計到站時刻
         if srt_name in visited: continue
+        print(srt_name, end=', ', flush=True)
         visited[srt_name] = True
         raw_est = list( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{this_srt_city_ename}/{srt_name}') )
         if len(raw_est) < 1: continue
@@ -219,4 +226,4 @@ if __name__ == '__main__':
 
     # openssl req -x509 -newkey rsa:4096 -nodes -out flask-cert.pem -keyout flask-key.pem -days 36500
     # https://blog.miguelgrinberg.com/post/running-your-flask-application-over-https
-    app.run(host='0.0.0.0', port=7984, ssl_context=(os.environ['HOME']+'/secret/flask-cert.pem', os.environ['HOME']+'/secret/flask-key.pem'))
+    app.run(host='0.0.0.0', port=7984, debug=True, ssl_context=(os.environ['HOME']+'/secret/flask-cert.pem', os.environ['HOME']+'/secret/flask-key.pem'))
