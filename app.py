@@ -88,12 +88,16 @@ def bus_rte(city, rtname):
 
 def position_diff(tail, head):
     # 從兩點的經緯度計算 x 座標差與 y 座標差 (單位： 公尺)
-    head = head['StopPosition']
-    tail = tail['StopPosition']
-    dy = (tail['PositionLat'] - head['PositionLat']) * 4e7 / 360
-    dx = (tail['PositionLon'] - head['PositionLon']) * 4.0075e7 / 360
-    dx *= math.cos( (tail['PositionLat']+head['PositionLat'])/2/180*math.pi )
-    return (dx, dy)
+    if 'StopPosition' in head and 'StopPosition' in tail:
+        head = head['StopPosition']
+        tail = tail['StopPosition']
+        dy = (tail['PositionLat'] - head['PositionLat']) * 4e7 / 360
+        dx = (tail['PositionLon'] - head['PositionLon']) * 4.0075e7 / 360
+        dx *= math.cos( (tail['PositionLat']+head['PositionLat'])/2/180*math.pi )
+        return (dx, dy)
+    else:
+        # 曾經在 台中 青年高中 出現 KeyError: 'StopPosition'
+        return (0, 0)
 
 def find_stop_fill_next(stopname, dir, rt_est):
     # 在 rt_est 某路線預估清單裡面找到站名為 stopname、
