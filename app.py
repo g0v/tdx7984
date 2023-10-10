@@ -5,6 +5,7 @@ from flask import Flask, jsonify, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
 from werkzeug.serving import WSGIRequestHandler, _log
+from warnings import warn
 
 G = {
     'date_format': '%m/%d %H:%M:%S',
@@ -106,7 +107,7 @@ def position_diff(tail, head):
 
 def find_stop_fill_next(stopname, dir, rt_est):
     # 在 rt_est 某路線預估清單裡面找到站名為 stopname、
-    # 方向為 dir 的那一筆， 並且幫它建立 'nextstop' 欄位，
+    # 方向為 dir 的那一筆， 並且幫它建立 'next_stop' 欄位，
     # 填入下一站的名稱。 方法是把同方向的站牌順過一次，
     # 找到等待同一部公車的任意相鄰兩站， 如果兩者的預估時間不同，
     # 就可以確定哪個方向才是下一站。
@@ -122,20 +123,20 @@ def find_stop_fill_next(stopname, dir, rt_est):
     focus = i
     city_code = samedir[focus]['RouteUID'][:3]
     samedir[focus]['rte_city'] = tdx.city_list['by_code'][city_code]['ename']
-    if not 'PlateNumb' in samedir[0]:
+    if 'PlateNumb' in samedir[0]:
+        for i in range(len(samedir)-1):
+            if samedir[i]['PlateNumb'] == samedir[i+1]['PlateNumb'] and samedir[i]['est_min'] != samedir[i+1]['est_min']:
+                if samedir[i]['est_min'] < samedir[i+1]['est_min']:
+                    samedir[focus]['next_stop'] = samedir[focus+1 if focus+1 < len(samedir) else focus]
+                else:
+                    samedir[focus]['next_stop'] = samedir[focus-1 if focus>0 else 0]
+                break
+        if not 'next_stop' in samedir[focus]: return None
+    else:
         # 台北市的 EstimatedTimeOfArrival 沒有 PlateNumb
-        samedir[focus]['nextstop'] = samedir[focus+1 if focus+1<len(samedir) else focus]
-        return samedir[focus]
-    for i in range(len(samedir)-1):
-        if samedir[i]['PlateNumb'] == samedir[i+1]['PlateNumb'] and samedir[i]['est_min'] != samedir[i+1]['est_min']:
-            if samedir[i]['est_min'] < samedir[i+1]['est_min']:
-                samedir[focus]['nextstop'] = samedir[focus+1 if focus+1 < len(samedir) else focus]
-            else:
-                samedir[focus]['nextstop'] = samedir[focus-1 if focus>0 else 0]
-            break
-    if not 'nextstop' in samedir[focus]: return None
-    samedir[focus]['next_vector'] = position_diff(samedir[focus]['nextstop'], samedir[focus])
-    samedir[focus]['nextstop'] = samedir[focus]['nextstop']['StopName']['Zh_tw']
+        samedir[focus]['next_stop'] = samedir[focus+1 if focus+1<len(samedir) else focus]
+    samedir[focus]['next_vector'] = position_diff(samedir[focus]['next_stop'], samedir[focus])
+    samedir[focus]['next_stop'] = samedir[focus]['next_stop']['StopName']['Zh_tw']
     return samedir[focus]
 
 @app.route('/bus/stop/<city>/<stopname>')
@@ -211,7 +212,9 @@ def bus_stop(city, stopname):
         est = find_stop_fill_next(stopname, 1, rt_est)
         if est is not None: all_est.append(est)
     print('')
-    all_est = sorted(all_est, key=operator.itemgetter('nextstop','est_min'))
+    for x in all_est:
+        warn(json.dumps(x['next_stop'], ensure_ascii=False))
+    all_est = sorted(all_est, key=operator.itemgetter('next_stop','est_min'))
     return render_template('stop-est.html', city=city, stopname=stopname, est=all_est, now=now_string())
 
 @app.route('/bus/sched/<city>/<rtname>')
