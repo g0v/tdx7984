@@ -41,3 +41,10 @@ table.center {
 
 table.center-content th, table.center-content td { text-align: center; }
 
+#footer {
+    width:25em;
+    margin: 0 auto;
+    padding-top: 1em;
+    padding-bottom: 3em;
+}
+

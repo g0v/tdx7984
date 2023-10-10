@@ -7,6 +7,7 @@ from flask_cors import CORS
 from werkzeug.serving import WSGIRequestHandler, _log
 
 G = {
+    'date_format': '%m/%d %H:%M:%S',
 }
 
 # https://stackoverflow.com/questions/36299494/how-to-remove-the-from-flasks-logging
@@ -20,6 +21,10 @@ class MyRequestHandler(WSGIRequestHandler):
 app = Flask(__name__)
 CORS(app)
 
+def now_string():
+    global G
+    return datetime.now().strftime(G['date_format'])
+
 @app.route('/')
 def hello():
     return 'This is a flask web server'
@@ -27,7 +32,7 @@ def hello():
 @app.route('/bus')
 @app.route('/bus/')
 def bus_index():
-    return render_template('bus-index.html', city_list=tdx.city_list)
+    return render_template('bus-index.html', city_list=tdx.city_list, now=now_string())
 
 @app.route('/bus/routes/<city>')
 def bus_all(city):
@@ -37,7 +42,7 @@ def bus_all(city):
         'select cname from subroute where substr(uid,1,3)=?', (tdx.city_code(city),)
     )
     all_routes = list( [ x[0] for x in sqcursor.fetchall() ] )
-    return render_template('city-routes.html', city=city, all_routes=all_routes)
+    return render_template('city-routes.html', city=city, all_routes=all_routes, now=now_string())
 
 @app.route('/geojson/bike/stations/<cities>')
 def bike_stations(cities):
@@ -84,7 +89,7 @@ def bus_rte(city, rtname):
 #            if not 'PlateNumb' in s['dir1']: s['dir1']['PlateNumb'] = ''
         else:
             s['dir1'] = empty
-    return render_template('route-est.html', city=city, rtname=rtname, est=est)
+    return render_template('route-est.html', city=city, rtname=rtname, est=est, now=now_string())
 
 def position_diff(tail, head):
     # 從兩點的經緯度計算 x 座標差與 y 座標差 (單位： 公尺)
@@ -166,7 +171,7 @@ def bus_stop(city, stopname):
     visited = {}
     all_est = []
     # 一開始先按照 srt_name 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
-    print(datetime.now().strftime('%m/%d %H:%M:%S'), f'{stopname} ', end='')
+    print(now_string(), f'{stopname} ', end='')
     for st in stops:
         srt_name = st['srt_cname']
         this_srt_city_code = st['srt_uid'][:3]
@@ -207,12 +212,13 @@ def bus_stop(city, stopname):
         if est is not None: all_est.append(est)
     print('')
     all_est = sorted(all_est, key=operator.itemgetter('nextstop','est_min'))
-    return render_template('stop-est.html', city=city, stopname=stopname, est=all_est)
+    return render_template('stop-est.html', city=city, stopname=stopname, est=all_est, now=now_string())
 
 @app.route('/bus/sched/<city>/<rtname>')
 def bus_sched(city, rtname):
+    global G
     dtt_all = tdx.query(f'Bus/DailyTimeTable/City/{tdx.city_ename(city)}/{rtname}')
-    return render_template('time-table.html', city=city, rtname=rtname, dtt_all=dtt_all)
+    return render_template('time-table.html', city=city, rtname=rtname, dtt_all=dtt_all, now=now_string())
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -235,7 +241,7 @@ if __name__ == '__main__':
         level=logging.INFO,
         # format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s',
         format='%(asctime)s %(levelname)s %(message)s',
-        datefmt='%m/%d %H:%M:%S',
+        datefmt=G['date_format'],
     )
     logger = logging.getLogger('werkzeug')
     logger.setLevel(logging.INFO)
