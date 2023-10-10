@@ -212,8 +212,6 @@ def bus_stop(city, stopname):
         est = find_stop_fill_next(stopname, 1, rt_est)
         if est is not None: all_est.append(est)
     print('')
-    for x in all_est:
-        warn(json.dumps(x['next_stop'], ensure_ascii=False))
     all_est = sorted(all_est, key=operator.itemgetter('next_stop','est_min'))
     return render_template('stop-est.html', city=city, stopname=stopname, est=all_est, now=now_string())
 
