@@ -3,7 +3,11 @@
 
 (文件未完成)
 
-## 環境
+## 一、 使用現成的服務
+
+如果不想自己架設， 可以直接參考這篇： [tdx7984 "去坐巴士"： 「過某站所有路線」 按照 「下一站站名」 排序的公車到站時刻網頁服務](https://newtoypia.blogspot.com/2023/10/tdx7984.html)
+
+## 二、 環境
 
 ```apt install python3-flask python3-flask-cors python3-apscheduler```
 
@@ -14,7 +18,7 @@
 1. zq 範例： 列出某縣市所有路線的所有站牌名稱： ```zq -f csv -i json 'over this | over Stops with RouteUID,RouteName => ({rt_uid:RouteUID, rt_name:RouteName.Zh_tw, stn_id:StationID, stop_uid:StopUID, stop_name:StopName.Zh_tw})' Taipei.json```
 1. 刪除舊的資料庫、重新建立空的資料庫： ```rm -f routes_stops.sqlite3 ; sqlite3 routes_stops.sqlite3 < create_db.sql```
 1. 把各縣市的 json 檔匯入 sqlite3： ```python3 sqlify.py routes_stops.sqlite3```
-1. 進入 ```sqlite routes_stops.sqlite3```， 然後測試： ```select stop.uid, stop.cname, stop.station_id, stop.subroute, subroute.cname from stop join subroute on stop.subroute=subroute.uid where stop.cname="一女中(公園)" order by station_id```
+1. 進入 ```sqlite routes_stops.sqlite3```， 然後測試： ```select stop.uid, stop.cname, stop.station_id, stop.srt_uid, subroute.cname from stop join subroute on stop.srt_uid=subroute.uid where stop.cname="一女中(公園)" order by station_id```
 
 參考閱讀：
 1. [運輸資料流通服務 tdx 範例 ](https://newtoypia.blogspot.com/2022/10/tdx.html)
