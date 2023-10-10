@@ -1,0 +1,16 @@
+// dot -Tsvg study-map.dot > study-map.svg
+digraph "javascript 學習地圖" {
+
+    rankdir = LR;
+    overlap = scale;
+
+    index [ label="縣市列表" ];
+    city_routes [ label="某縣市所有\n公車路線" ];
+    route_est [ label="某路線\n所有站牌\n預估到站時間" ];
+    stop_est [ label="經過某站牌\n所有路線\n預估到站時間" ];
+    time_table [ label="某路線\n發車時刻表" ];
+
+    index -> city_routes -> route_est -> stop_est;
+    stop_est -> route_est -> time_table -> route_est;
+}
+
