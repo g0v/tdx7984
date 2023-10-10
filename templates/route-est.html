@@ -13,8 +13,6 @@
     如果 dict 裡面找不到想要的 key， 並不會出錯， 就印空字串， 這一點很方便。
     -->
 
-    <p class="center"><a href="/bus/sched/{{ city }}/{{ rtname }}">發車時刻表</a></p>
-
     <table border="1" class="center">
 	<tr> <th>順序 <th>車牌 <th>預估 <th>站名 <th>預估 <th>車牌 <th>順序
         {% for stop in est %}
@@ -29,6 +27,8 @@
         </tr>
         {% endfor %}
     </table>
+
+    <p class="center"><a href="/bus/sched/{{ city }}/{{ rtname }}">{{ rtname}} 發車時刻表</a> (只有少數縣市才有)</p>
 
     {% include "footer.html" %}
 </body>
