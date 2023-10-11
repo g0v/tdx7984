@@ -91,6 +91,8 @@ def geojify(point, coord_path='', name_path=''):
 def merge_dir(stops_to, stops_fro, keep_dup=False):
     stops_to = sorted(stops_to, key=itemgetter('StopSequence'))
     stops_fro = sorted(stops_fro, key=itemgetter('StopSequence'), reverse=True)
+    # print(json.dumps([ x['StopName']['Zh_tw'] for x in stops_to], ensure_ascii=False))
+    # print(json.dumps([ x['StopName']['Zh_tw'] for x in stops_fro], ensure_ascii=False))
     by_name_to = {}
     by_name_fro = {}
     for s in stops_to:
@@ -99,6 +101,7 @@ def merge_dir(stops_to, stops_fro, keep_dup=False):
         by_name_fro[ s['StopName']['Zh_tw'] ] = s
     i_to = 0 ; i_fro = 0 ; ans = []
     while i_to < len(stops_to) and i_fro < len(stops_fro) :
+        # print(i_to, stops_to[i_to]['StopName']['Zh_tw'], i_fro, stops_fro[i_fro]['StopName']['Zh_tw'])
         if stops_to[i_to]['StopName']['Zh_tw'] ==  stops_fro[i_fro]['StopName']['Zh_tw'] :
             ans.append(stops_to[i_to])
             if keep_dup:
@@ -132,6 +135,20 @@ def bus_stops(city, srt_name, to_fro=3):
         # 例如新北 243
         route = list(filter(lambda r: r['SubRouteName']['Zh_tw']==srt_name, route))
     # if len(route) == 0: return []
+    if len(route) > 2:
+        # 南投 3 號傳回六筆， 但起迄只有 「南岸到溪頭」、
+        # 「溪頭到南岸」 兩種 => 刪除重複的
+        deduped = []
+        seen = {}
+        for rte in route:
+            first = f"{rte['Stops'][0]['StopName']['Zh_tw']}"
+            last = f"{rte['Stops'][-1]['StopName']['Zh_tw']}"
+            key = f'{first}#{last}'
+            # print(key)
+            if key in seen: continue
+            seen[key] = True
+            deduped.append(rte)
+        route = deduped
     assert(len(route) <= 2)
     if len(route) == 0:
         # select stop.uid, stop.cname, stop.srt_uid, subroute.cname, stop.dir, stop.station_id from stop join subroute on stop.srt_uid=s ubroute.uid where stop.cname="第三市場" and substr(stop.uid,1,3)="TXG"
