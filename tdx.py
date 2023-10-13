@@ -114,8 +114,9 @@ def merge_dir(stops_to, stops_fro, keep_dup=False):
         while i_fro < len(stops_fro) and not stops_fro[i_fro]['StopName']['Zh_tw'] in by_name_to :
             ans.append(stops_fro[i_fro])
             i_fro += 1
-        if stops_to[i_to]['StopName']['Zh_tw'] in by_name_fro and stops_fro[i_fro]['StopName']['Zh_tw'] in by_name_to:
-            # 南投/3 會讓流程走到這裡
+        if i_to < len(stops_to) and stops_to[i_to]['StopName']['Zh_tw'] in by_name_fro and \
+           i_fro < len(stops_fro) and stops_fro[i_fro]['StopName']['Zh_tw'] in by_name_to:
+            # 南投/3 台北/310 會讓流程走到這裡
             i_to += 1
             i_fro += 1
     ans += stops_to[i_to:] + stops_fro[i_fro:]
