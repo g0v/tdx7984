@@ -248,7 +248,7 @@ if __name__ == '__main__':
     logger.setLevel(logging.INFO)
 
     scheduler = BackgroundScheduler()
-    scheduler.add_job(func=tdx.load_credential, trigger='interval', seconds=7200)
+    scheduler.add_job(func=tdx.load_credential, trigger='interval', seconds=28800)
     atexit.register(lambda: scheduler.shutdown())
     scheduler.start()
 
