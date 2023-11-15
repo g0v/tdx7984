@@ -219,6 +219,8 @@ def bus_stop(city, stopname):
 def bus_sched(city, rtname):
     global G
     dtt_all = tdx.query(f'Bus/DailyTimeTable/City/{tdx.city_ename(city)}/{rtname}')
+    for srt in dtt_all:
+        srt['Timetables'] = sorted(srt['Timetables'], key=lambda rte: rte['StopTimes'][0]['DepartureTime'])
     return render_template('time-table.html', city=city, rtname=rtname, dtt_all=dtt_all, now=now_string())
 
 if __name__ == '__main__':
