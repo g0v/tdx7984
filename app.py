@@ -196,9 +196,12 @@ def bus_stop(city, stopname):
             # 台北市沒有 SubRouteName
             if 'SubRouteName' in est:
                 if est['SubRouteName']['Zh_tw'] != srt_name: continue
-            else:
+            elif 'RouteName' in est:
                 if est['RouteName']['Zh_tw'] != srt_name: continue
                 est['SubRouteName'] = est['RouteName']
+            else:
+                print(f'!? app.py: bus_stop(): (stopname, srt_name, est)==({stopname}, {srt_name}, {est})')
+                continue
             est['est_min'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
             if not 'StopSequence' in est:
                 est['StopSequence'] = tdx.lookup_by_stopuid(est['StopUID'], stop_info_by_uid, 'StopSequence', default=999, rtname=srt_name)

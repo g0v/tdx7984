@@ -61,7 +61,7 @@ def query(qs):
         msg = response['message'] if 'message' in response else response['Message']
         if 'Not Found' in msg or 'not accepted' in msg:
             # 南投沒有 ubike
-            warn(json.dumps(response, ensure_ascii=False))
+            warn(json.dumps(qs + ': ' + response, ensure_ascii=False))
             return []
     return response
 
@@ -132,10 +132,14 @@ def bus_pos(city, srt_name, to_fro=2):
 def bus_stops(city, srt_name, to_fro=3):
     # to_fro: 0 去程 / 1 回程 / 2 全部 / 3 聯集， 刪除重複
     ans = query(f'Bus/StopOfRoute/City/{city_ename(city)}/{srt_name}')
+    # 一個路線名稱可能會撈到好幾筆實際路線的記錄；
     # 例如台北 "307"， 在 tdx api 裡面會撈到
     # 307莒光往板橋前站、 307莒光往撫遠街、 307西藏往板橋前站(停駛)、 307西藏往撫遠街(停駛)、 307西藏往板橋前站、 307西藏往撫遠街、
-    route = list(filter(lambda r: not '停駛' in r['SubRouteName']['Zh_tw'], ans))
-    route = list(filter(lambda r: r['RouteName']['Zh_tw']==srt_name, route))
+    route = []
+    # 2024/5/3 tdx 有時會傳回 "message" 而不是一個 dict!?
+    for rte in ans:
+        if type(rte) == dict and rte['RouteName']['Zh_tw']==srt_name and not '停駛' in rte['SubRouteName']['Zh_tw']:
+            route.append(rte)
     if len(route) > 2:
         # 例如新北 243
         route = list(filter(lambda r: r['SubRouteName']['Zh_tw']==srt_name, route))
@@ -245,4 +249,4 @@ if __name__ == '__main__':
 #    ans = query(f'Bus/EstimatedTimeOfArrival/City/Taichung/{args.route_name}')
 #    print(json.dumps(ans, ensure_ascii=False))
 #    print(json.dumps(bus_est(args.city, args.route_name), ensure_ascii=False))
-    print(json.dumps(bus_est(args.city, args.route_name), ensure_ascii=False))
+    print(json.dumps(bus_stops(args.city, args.route_name), ensure_ascii=False))
