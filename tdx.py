@@ -56,16 +56,14 @@ def query(qs):
         response = requests.get(f'https://tdx.transportdata.tw/api/basic/v2/{qs}', headers=G['headers'], timeout=5).json()
     except Exception as ex:
         # https://stackoverflow.com/a/9824050
-        # print(type(ex).__name__, ex.args)
-        # G['logger'](type(ex).__name__)
-        logging.warning(type(ex).__name__)
+        logging.warning(str(ex))
         return []
     if type(response) is dict:
         msg = response['message'] if 'message' in response else response['Message']
         if 'Not Found' in msg or 'not accepted' in msg:
             # 南投沒有 ubike
             # warn(json.dumps(qs + ': ' + response, ensure_ascii=False))
-            logging.warn(json.dumps(qs + ': ' + response, ensure_ascii=False))
+            logging.warning(json.dumps(qs + ': ' + msg, ensure_ascii=False))
             return []
     return response
 
@@ -95,8 +93,7 @@ def geojify(point, coord_path='', name_path=''):
 def merge_dir(stops_to, stops_fro, keep_dup=False):
     stops_to = sorted(stops_to, key=itemgetter('StopSequence'))
     stops_fro = sorted(stops_fro, key=itemgetter('StopSequence'), reverse=True)
-    # print(json.dumps([ x['StopName']['Zh_tw'] for x in stops_to], ensure_ascii=False))
-    # print(json.dumps([ x['StopName']['Zh_tw'] for x in stops_fro], ensure_ascii=False))
+    # logging.warning(json.dumps([ x['StopName']['Zh_tw'] for x in stops_to], ensure_ascii=False))
     by_name_to = {}
     by_name_fro = {}
     for s in stops_to:
@@ -105,7 +102,7 @@ def merge_dir(stops_to, stops_fro, keep_dup=False):
         by_name_fro[ s['StopName']['Zh_tw'] ] = s
     i_to = 0 ; i_fro = 0 ; ans = []
     while i_to < len(stops_to) and i_fro < len(stops_fro) :
-        # print(i_to, stops_to[i_to]['StopName']['Zh_tw'], i_fro, stops_fro[i_fro]['StopName']['Zh_tw'])
+        # logging.warning(i_to, stops_to[i_to]['StopName']['Zh_tw'], i_fro, stops_fro[i_fro]['StopName']['Zh_tw'])
         if stops_to[i_to]['StopName']['Zh_tw'] ==  stops_fro[i_fro]['StopName']['Zh_tw'] :
             ans.append(stops_to[i_to])
             if keep_dup:
@@ -183,7 +180,7 @@ def lookup_by_stopuid(uid, table, key, default='', rtname=''):
     else:
         # 台北 藍28
         # warn(f'不存在的 StopUID： {uid} [{rtname}]')
-        logging.warn(f'不存在的 StopUID： {uid} [{rtname}]')
+        logging.warning(f'不存在的 StopUID： {uid} [{rtname}]')
         return default
 
 def bus_est(city, srt_name):
@@ -197,7 +194,7 @@ def bus_est(city, srt_name):
             (s['StopUID'], s) for s in bus_stops(city, srt_name, to_fro=2)
         )
     est_to = [] ; est_fro = []
-#    print(json.dumps(ans, ensure_ascii=False))
+#    logging.warning(json.dumps(ans, ensure_ascii=False))
     for stop in ans:
         if stop['RouteName']['Zh_tw'] != srt_name: continue
         # 台北市沒有 SubRouteID？ 例如 243、 307
@@ -243,6 +240,11 @@ def bus_est(city, srt_name):
 init()
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s %(levelname)s %(message)s',
+        datefmt='%m/%d %H:%M:%S',
+    )
     import argparse
     parser = argparse.ArgumentParser(
         description='tdx api test',
@@ -251,6 +253,6 @@ if __name__ == '__main__':
     parser.add_argument('route_name', type=str, help='路線名稱')
     args = parser.parse_args()
 #    ans = query(f'Bus/EstimatedTimeOfArrival/City/Taichung/{args.route_name}')
-#    print(json.dumps(ans, ensure_ascii=False))
-#    print(json.dumps(bus_est(args.city, args.route_name), ensure_ascii=False))
-    print(json.dumps(bus_stops(args.city, args.route_name), ensure_ascii=False))
+#    logging.warning(json.dumps(ans, ensure_ascii=False))
+#    logging.warning(json.dumps(bus_est(args.city, args.route_name), ensure_ascii=False))
+    logging.info(json.dumps(bus_stops(args.city, args.route_name), ensure_ascii=False))

@@ -48,7 +48,7 @@ CORS(app)
 @app.errorhandler(Exception)
 def handle_exception(e):
     # log the exception
-    logging.exception('Exception occurred')
+    logging.exception('internal error: exception occurred')
     # return a custom error page or message
     return render_template('error.html'), 500
 
@@ -202,7 +202,6 @@ def bus_stop(city, stopname):
     visited = {}
     all_est = []
     # 一開始先按照 srt_name 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
-    # print(now_string(), f'{stopname} ', end='')
     query_log = now_string() + stopname + ' '
     for st in stops:
         srt_name = st['srt_cname']
@@ -210,7 +209,6 @@ def bus_stop(city, stopname):
         this_srt_city_ename = tdx.city_list['by_code'][this_srt_city_code]['ename']
         # 每一個站牌名稱可能有兩個 (方向的) 估計到站時刻
         if srt_name in visited: continue
-        # print(srt_name, end=', ', flush=True)
         query_log += srt_name + ', '
         visited[srt_name] = True
         raw_est = list( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{this_srt_city_ename}/{srt_name}') )
