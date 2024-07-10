@@ -5,7 +5,7 @@ from flask import Flask, jsonify, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
 from werkzeug.serving import WSGIRequestHandler, _log
-from warnings import warn
+from logging.config import dictConfig
 
 G = {
     'date_format': '%m/%d %H:%M:%S',
@@ -19,8 +19,38 @@ class MyRequestHandler(WSGIRequestHandler):
             message % args)
         )
 
+# https://betterstack.com/community/guides/logging/how-to-start-logging-with-flask/
+dictConfig(
+    {
+        "version": 1,
+        "formatters": {
+            "default": {
+                "format": "[%(asctime)s] [%(levelname)s | %(module)s] %(message)s",
+                "datefmt": G['date_format'],
+            },
+        },
+        "handlers": {
+            "file": {
+                "class": "logging.FileHandler",
+                "filename": "/var/log/tdx7984/query.log",
+                "formatter": "default",
+            },
+
+        },
+        "root": {"level": "DEBUG", "handlers": ["file"]},
+    }
+)
+
 app = Flask(__name__)
 CORS(app)
+
+# https://stackoverflow.com/questions/74155189/how-to-log-uncaught-exceptions-in-flask-routes-with-logging
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # log the exception
+    logging.exception('Exception occurred')
+    # return a custom error page or message
+    return render_template('error.html'), 500
 
 def now_string():
     global G
@@ -172,14 +202,16 @@ def bus_stop(city, stopname):
     visited = {}
     all_est = []
     # 一開始先按照 srt_name 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
-    print(now_string(), f'{stopname} ', end='')
+    # print(now_string(), f'{stopname} ', end='')
+    query_log = now_string() + stopname + ' '
     for st in stops:
         srt_name = st['srt_cname']
         this_srt_city_code = st['srt_uid'][:3]
         this_srt_city_ename = tdx.city_list['by_code'][this_srt_city_code]['ename']
         # 每一個站牌名稱可能有兩個 (方向的) 估計到站時刻
         if srt_name in visited: continue
-        print(srt_name, end=', ', flush=True)
+        # print(srt_name, end=', ', flush=True)
+        query_log += srt_name + ', '
         visited[srt_name] = True
         raw_est = list( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{this_srt_city_ename}/{srt_name}') )
         if len(raw_est) < 1: continue
@@ -200,7 +232,7 @@ def bus_stop(city, stopname):
                 if est['RouteName']['Zh_tw'] != srt_name: continue
                 est['SubRouteName'] = est['RouteName']
             else:
-                print(f'!? app.py: bus_stop(): (stopname, srt_name, est)==({stopname}, {srt_name}, {est})')
+                logging.error(f'!? app.py: bus_stop(): (stopname, srt_name, est)==({stopname}, {srt_name}, {est})')
                 continue
             est['est_min'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
             if not 'StopSequence' in est:
@@ -214,7 +246,7 @@ def bus_stop(city, stopname):
         if est is not None: all_est.append(est)
         est = find_stop_fill_next(stopname, 1, rt_est)
         if est is not None: all_est.append(est)
-    print('')
+    logging.info(query_log)
     all_est = sorted(all_est, key=operator.itemgetter('next_stop','est_min'))
     return render_template('stop-est.html', city=city, stopname=stopname, est=all_est, now=now_string())
 
@@ -233,24 +265,33 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dbpath', type=str,
         default='',
         help='全國所有縣市公車路線與站牌資料庫檔案')
-    parser.add_argument('-L', '--logpath', type=str,
-        default=os.environ['HOME']+'/log/tdx7984.log',
-        help='log 檔路徑')
+#    parser.add_argument('-L', '--logpath', type=str,
+#        default=os.environ['HOME']+'/log/tdx7984.log',
+#        help='log 檔路徑')
     G['args'] = parser.parse_args()
     m = re.search(r'(.*)/', __file__)
     my_dir = m.group(1)
     if G['args'].dbpath == '':
         G['args'].dbpath = f'{my_dir}/routes_stops.sqlite3'
 
-    logging.basicConfig(
-        filename=G['args'].logpath,
-        level=logging.INFO,
-        # format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s',
-        format='%(asctime)s %(levelname)s %(message)s',
-        datefmt=G['date_format'],
-    )
-    logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.INFO)
+#    logging.basicConfig(
+#        # handlers=[
+#        #     logging.handlers.SysLogHandler(address='/dev/log')
+#        # ],
+#        level=logging.INFO,
+#        format='%(asctime)s %(levelname)s %(message)s',
+#        datefmt=G['date_format'],
+#    )
+#
+#    G['tdx7984_logger'] = logging.getLogger('tdx7984')
+#    qh = logging.FileHandler('/var/log/tdx7984/query.log')
+#    qh.setLevel(logging.DEBUG)
+#    qh.setFormatter(logging.Formatter(
+#        '%(asctime)s %(name)s: %(levelname)s %(message)s'))
+#    G['tdx7984_logger'].addHandler(qh)
+#
+#    werkzeug_logger = logging.getLogger('werkzeug')
+#    werkzeug_logger.setLevel(logging.INFO)
 
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=tdx.load_credential, trigger='interval', seconds=7200)

@@ -1,6 +1,5 @@
-import requests, json, os, csv, re
+import logging, requests, json, os, csv, re
 from operator import itemgetter
-from warnings import warn
 
 city_list = {
     'by_code': {}, 'by_cname': {}, 'by_ename': {}
@@ -10,10 +9,12 @@ G = {
     'headers': {
         'accept': 'application/json'
     },
+    # 'logger': logging.getLogger('tdx7984'),
 }
 
 def init(dbpath=''):
     global city_list, G
+
     m = re.search(r'(.*)/', __file__)
     my_dir = m.group(1)
     G['dbpath'] = f'{my_dir}/routes_stops.sqlite3' if dbpath == '' else dbpath
@@ -55,13 +56,16 @@ def query(qs):
         response = requests.get(f'https://tdx.transportdata.tw/api/basic/v2/{qs}', headers=G['headers'], timeout=5).json()
     except Exception as ex:
         # https://stackoverflow.com/a/9824050
-        print(type(ex).__name__, ex.args)
+        # print(type(ex).__name__, ex.args)
+        # G['logger'](type(ex).__name__)
+        logging.warning(type(ex).__name__)
         return []
     if type(response) is dict:
         msg = response['message'] if 'message' in response else response['Message']
         if 'Not Found' in msg or 'not accepted' in msg:
             # 南投沒有 ubike
-            warn(json.dumps(qs + ': ' + response, ensure_ascii=False))
+            # warn(json.dumps(qs + ': ' + response, ensure_ascii=False))
+            logging.warn(json.dumps(qs + ': ' + response, ensure_ascii=False))
             return []
     return response
 
@@ -153,7 +157,6 @@ def bus_stops(city, srt_name, to_fro=3):
             first = f"{rte['Stops'][0]['StopName']['Zh_tw']}"
             last = f"{rte['Stops'][-1]['StopName']['Zh_tw']}"
             key = f'{first}#{last}'
-            # print(key)
             if key in seen: continue
             seen[key] = True
             deduped.append(rte)
@@ -179,7 +182,8 @@ def lookup_by_stopuid(uid, table, key, default='', rtname=''):
         return table[uid][key]
     else:
         # 台北 藍28
-        warn(f'不存在的 StopUID： {uid} [{rtname}]')
+        # warn(f'不存在的 StopUID： {uid} [{rtname}]')
+        logging.warn(f'不存在的 StopUID： {uid} [{rtname}]')
         return default
 
 def bus_est(city, srt_name):
