@@ -1,7 +1,7 @@
 # apt install python3-flask python3-flask-cors python3-apscheduler
 import logging, tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json
 from datetime import datetime
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
 from werkzeug.serving import WSGIRequestHandler, _log
@@ -51,6 +51,13 @@ def handle_exception(e):
     logging.exception('internal error: exception occurred')
     # return a custom error page or message
     return render_template('error.html'), 500
+
+# https://ithelp.ithome.com.tw/articles/10266705?sc=iThelpR
+@app.errorhandler(404)
+def page_not_found(e):
+    # https://stackoverflow.com/questions/50346512/flask-404-catch-requested-url
+    logging.warning('page not found (404) ' + request.path)
+    return render_template('404.html'), 404
 
 def now_string():
     global G
