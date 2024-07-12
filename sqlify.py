@@ -1,9 +1,13 @@
-import argparse, csv, json, os, sqlite3
+import argparse, subprocess, csv, json, os, sqlite3
 from warnings import warn
 
 parser = argparse.ArgumentParser(
     description='讀取 (從 tdx 取得的) *.json 公車路線與站牌資訊、 轉而存入 sqlite3 資料庫',
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('-d', '--jsondir', type=str, default='.',
+    help='各縣市站牌資訊 json 檔的目錄')
+parser.add_argument('-f', '--force', action='store_true',
+    help='即使資料庫檔已存在，也強制刪除舊版重建')
 parser.add_argument('dbfile', help='資料庫.sqlite3')
 
 args = parser.parse_args()
@@ -13,6 +17,16 @@ with open('cities.csv') as F:
         city_dict['by_code'][row['code']] = row
         city_dict['by_cname'][row['cname']] = row
         city_dict['by_ename'][row['ename']] = row
+
+if os.path.exists(args.dbfile):
+    if args.force:
+        os.remove(args.dbfile)
+    else:
+        warn(f'檔案 {args.dbfile} 已存在， 恕不處理')
+        exit(1)
+
+with open('create_db.sql') as create_db:
+    subprocess.call(['sqlite3', args.dbfile], stdin=create_db)
 sqcon = sqlite3.connect(args.dbfile)
 # https://jetswayss.medium.com/sqlite-insert-performance-part-1-c4a57de337bb
 # https://medium.com/@JasonWyatt/squeezing-performance-from-sqlite-insertions-971aff98eef2
@@ -20,7 +34,7 @@ sqcon = sqlite3.connect(args.dbfile)
 for ct in list(city_dict['by_ename'].keys()):
 # for ct in ['LienchiangCounty']:
     print('[', city_dict['by_ename'][ct]['cname'], ']')
-    with open(f'{ct}.json') as F:
+    with open(f'{args.jsondir}/{ct}.json') as F:
         data = json.load(F)
 #    print(json.dumps(data, ensure_ascii=False))
     # https://stackoverflow.com/a/6556536 connection.execute()
