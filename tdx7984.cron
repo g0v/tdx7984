@@ -1,0 +1,2 @@
+0 */5 * * * root systemctl restart tdx7984
+0 3 * * * root systemctl stop tdx7984 ; renew-stop-info.sh
