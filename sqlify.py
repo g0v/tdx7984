@@ -50,6 +50,7 @@ for ct in list(city_dict['by_ename'].keys()):
                 'insert or replace into stop(uid, dir, srt_uid, station_id, cname, ename, sequence, longitude, latitude) values (?, ?, ?, ?, ?, ?, ?, ?, ?)', values
             )
     sqcon.execute('commit')
+sqcon.execute('create index i_uid_srt on stop(uid,srt_uid)')
 
 sqcon.close()
 

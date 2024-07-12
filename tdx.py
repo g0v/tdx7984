@@ -1,4 +1,4 @@
-import logging, requests, json, os, csv, re
+import logging, configparser, requests, json, csv, re, sqlite3
 from operator import itemgetter
 
 city_list = {
@@ -9,16 +9,27 @@ G = {
     'headers': {
         'accept': 'application/json'
     },
-    # 'logger': logging.getLogger('tdx7984'),
 }
 
-def init(dbpath=''):
+def init(config_path=''):
     global city_list, G
 
-    m = re.search(r'(.*)/', __file__)
-    my_dir = m.group(1)
-    G['dbpath'] = f'{my_dir}/routes_stops.sqlite3' if dbpath == '' else dbpath
-    with open(f'{my_dir}/cities.csv') as F:
+    if not config_path:
+        m = re.search(r'(.*)/', __file__)
+        config_path = m.group(1) + '/tdx.ini'
+    G['config'] = configparser.ConfigParser()
+    G['config'].read(config_path)
+    # 還有 "interpolation" 功能!
+    # https://florian-dahlitz.de/articles/how-to-work-with-config-files-in-python
+    dbpath = G['config']['DEFAULT']['WORK_DIR'] + '/routes_stops.sqlite3'
+    G['dbcon'] = sqlite3.connect(dbpath, check_same_thread=False)
+    # https://stackoverflow.com/a/2894830
+    # https://ricardoanderegg.com/posts/python-sqlite-thread-safety/
+    # https://stackoverflow.com/a/53253110 還沒用到
+
+    G['dbcon'].row_factory = sqlite3.Row
+    # https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query
+    with open(G['config']['DEFAULT']['WORK_DIR'] + '/cities.csv') as F:
         for row in csv.DictReader(F):
             city_list['by_code'][row['code']] = row
             city_list['by_cname'][row['cname']] = row
@@ -46,7 +57,7 @@ def city_ename(name):
 
 def load_credential():
     global G
-    with open(os.environ['HOME']+'/.cache/tdx/tdx-credential.json') as f:
+    with open(G['config']['DEFAULT']['TDX_TOKEN_DIR']+'/tdx-credential.json') as f:
         G['credential'] = json.load(f)['access_token']
     G['headers']['authorization'] = f'Bearer {G["credential"]}'
 
@@ -174,14 +185,30 @@ def bus_stops(city, srt_name, to_fro=3):
         route = [ s for srt in route for s in srt['Stops'] ]
     return route
 
-def lookup_by_stopuid(uid, table, key, default='', rtname=''):
-    if uid in table:
-        return table[uid][key]
+# def lookup_by_stopuid(uid, table, key, default='', rtname=''):
+#     if uid in table:
+#         return table[uid][key]
+#     else:
+#         # 台北 藍28
+#         # warn(f'不存在的 StopUID： {uid} [{rtname}]')
+#         logging.warning(f'不存在的 StopUID： {uid} [{rtname}]')
+#         return default
+def fill_stop_info(stop):
+    dbcursor = G['dbcon'].cursor()
+    dbcursor.execute(
+        'select * from stop where uid="{}" and srt_uid="{}" and dir="{}"'.format(
+            stop['StopUID'], stop['SubRouteUID'], stop['Direction']
+        )
+    )
+    # https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query
+    ans = dbcursor.fetchone()
+    dbcursor.close()
+    if ans:
+        stop.update(ans)
     else:
-        # 台北 藍28
-        # warn(f'不存在的 StopUID： {uid} [{rtname}]')
-        logging.warning(f'不存在的 StopUID： {uid} [{rtname}]')
-        return default
+        logging.warning('不存在的 StopUID/SubRouteUID/Direction： {}/{}/{} [{}]'.format(
+            stop['StopUID'], stop['SubRouteUID'], stop['Direction'], stop['StopName']['Zh_tw']
+        ))
 
 def bus_est(city, srt_name):
     # https://motc-ptx.gitbook.io/tdx-zi-liao-shi-yong-kui-hua-bao-dian/data_notice/public_transportation_data/bus_static_data 站牌、站位與組站位間之差異
@@ -204,6 +231,7 @@ def bus_est(city, srt_name):
         est_1 = stop
         if not 'StopSequence' in stop:
             stop['StopSequence'] = lookup_by_stopuid(stop['StopUID'], stop_info_by_uid, 'StopSequence', default=999, rtname=srt_name)
+        fill_stop_info(stop)
         if stop['Direction'] == 0 :
             est_to.append(est_1)
         else:
@@ -237,22 +265,25 @@ def bus_est(city, srt_name):
             deduped[-1]['dir1'] = { key: merged[i][key] for key in to_copy if key in merged[i] }
     return deduped
 
-init()
-
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.DEBUG,
         format='%(asctime)s %(levelname)s %(message)s',
         datefmt='%m/%d %H:%M:%S',
     )
+    m = re.search(r'(.*)/', __file__)
+    my_dir = m.group(1)
     import argparse
     parser = argparse.ArgumentParser(
         description='tdx api test',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-c', '--config', type=str, default=my_dir+'/tdx.ini',
+        help='設定檔路徑')
     parser.add_argument('city', type=str, help='縣市')
     parser.add_argument('route_name', type=str, help='路線名稱')
     args = parser.parse_args()
-#    ans = query(f'Bus/EstimatedTimeOfArrival/City/Taichung/{args.route_name}')
-#    logging.warning(json.dumps(ans, ensure_ascii=False))
-#    logging.warning(json.dumps(bus_est(args.city, args.route_name), ensure_ascii=False))
-    logging.info(json.dumps(bus_stops(args.city, args.route_name), ensure_ascii=False))
+    init(args.config)
+#    ans = bus_stops(args.city, args.route_name)
+    ans = bus_est(args.city, args.route_name)
+    logging.info(json.dumps(ans, ensure_ascii=False))
+

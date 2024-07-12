@@ -1,0 +1,12 @@
+[Unit]
+Description=tdx7984 Taiwan bus arrival time
+ConditionPathExists=/opt/tdx7984/
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/tdx7984/app.py
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target

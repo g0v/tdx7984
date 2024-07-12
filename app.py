@@ -25,7 +25,7 @@ dictConfig(
         "version": 1,
         "formatters": {
             "default": {
-                "format": "[%(asctime)s] [%(levelname)s | %(module)s] %(message)s",
+                "format": "%(asctime)s %(levelname)s %(filename)s %(lineno)d | %(message)s",
                 "datefmt": G['date_format'],
             },
         },
@@ -67,12 +67,11 @@ def bus_index():
 
 @app.route('/bus/routes/<city>')
 def bus_all(city):
-    sqcon = sqlite3.connect(G['args'].dbpath)
-    sqcursor = sqcon.cursor()
-    sqcursor.execute(
+    dbcursor = tdx.G['dbcon'].cursor()
+    dbcursor.execute(
         'select cname from subroute where substr(uid,1,3)=?', (tdx.city_code(city),)
     )
-    all_routes = list( [ x[0] for x in sqcursor.fetchall() ] )
+    all_routes = list( [ x[0] for x in dbcursor.fetchall() ] )
     return render_template('city-routes.html', city=city, all_routes=all_routes, now=now_string())
 
 @app.route('/geojson/bike/stations/<cities>')
@@ -173,37 +172,37 @@ def find_stop_fill_next(stopname, dir, rt_est):
 def bus_stop(city, stopname):
     global G
     city_ename = tdx.city_ename(city)
-    sqcon = sqlite3.connect(G['args'].dbpath)
-    sqcursor = sqcon.cursor()
+    dbcursor = tdx.G['dbcon'].cursor()
     # 先不篩選縣市。 一個站牌 - 例如 「重慶南路一段」 -
     # 可能會有來自不同縣市的路線經過。
     # 例如在 243 線上本站稱為 NWT34514，
-    # 但在 670 線上本站稱為 TPE38456 =>
+    # 但在 670 線上本站稱為 TPE38456、
     # 藍28 TPE196974 =>
     # 第一輪篩選站牌中文名稱， 第二輪篩選 station_id。
-    sqcursor.execute(
+    dbcursor.execute(
         'select uid, station_id from stop where cname=?', (stopname,)
     )
     stations = {}
-    for st_of_srt in sqcursor.fetchall():
+    for st_of_srt in dbcursor.fetchall():
         (stop_uid, station_id) = st_of_srt
         city_code = stop_uid[:3]
         if tdx.city_list['by_code'][city_code]['ename'] == city_ename:
             stations[station_id] = True
     stations = list(stations.keys())
-    sqcursor.execute(
+    dbcursor.execute(
         'select stop.uid, stop.cname, stop.srt_uid, subroute.cname, stop.dir, stop.station_id from stop join subroute on stop.srt_uid=subroute.uid where stop.cname=? and stop.station_id in ('+','.join(['?']*len(stations))+')', [stopname]+stations
     )
     stops = [
-        dict(zip(['stop_uid', 'cname', 'srt_uid', 'srt_cname', 'dir', 'stn_id'], st)) for st in sqcursor.fetchall()
+        dict(zip(['stop_uid', 'cname', 'srt_uid', 'srt_cname', 'dir', 'stn_id'], st)) for st in dbcursor.fetchall()
     ]
-    sqcon.close()
+    # 隸屬於不同路線與方向的所有 stops
     stations = {}
     visited = {}
     all_est = []
     # 一開始先按照 srt_name 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
-    query_log = now_string() + stopname + ' '
+    query_log = f'[{stopname}] '
     for st in stops:
+        # 隸屬於某條路線的某個方向的一個 stop
         srt_name = st['srt_cname']
         this_srt_city_code = st['srt_uid'][:3]
         this_srt_city_ename = tdx.city_list['by_code'][this_srt_city_code]['ename']
@@ -216,13 +215,11 @@ def bus_stop(city, stopname):
         # 新北 243寵物公車
         # 台北的估計到站時刻資訊不含 StopSequence
         # 台中的不含 StationID， 都需要讀取靜態資訊來補充
-        stop_info_by_uid = dict(
-            (s['StopUID'], s) for s in tdx.bus_stops(this_srt_city_ename, srt_name, to_fro=2)
-        )
         # 台中跟台北的 StopSequence (方向) 定義不同。
         # 保留同一路線上其他站的預估到站資訊， 才好找 「下一站」。
         rt_est = []     # 一條路線的 (最多) 兩筆預估記錄
         for est in raw_est:
+            # 本路線上所有站牌的到站時刻估計
             # 台北市沒有 SubRouteName
             if 'SubRouteName' in est:
                 if est['SubRouteName']['Zh_tw'] != srt_name: continue
@@ -230,15 +227,10 @@ def bus_stop(city, stopname):
                 if est['RouteName']['Zh_tw'] != srt_name: continue
                 est['SubRouteName'] = est['RouteName']
             else:
-                logging.error(f'!? app.py: bus_stop(): (stopname, srt_name, est)==({stopname}, {srt_name}, {est})')
+                logging.error(f'est 內找不到 (Sub)RouteName: {stopname}/{srt_name} ## ' + str(est))
                 continue
             est['est_min'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
-            if not 'StopSequence' in est:
-                est['StopSequence'] = tdx.lookup_by_stopuid(est['StopUID'], stop_info_by_uid, 'StopSequence', default=999, rtname=srt_name)
-            if not 'StationID' in est:
-                est['StationID'] = tdx.lookup_by_stopuid(est['StopUID'], stop_info_by_uid, 'StationID')
-            if est['StopUID'] in stop_info_by_uid:
-                est['StopPosition'] = stop_info_by_uid[est['StopUID']]['StopPosition']
+            tdx.fill_stop_info(est)
             rt_est.append(est)
         est = find_stop_fill_next(stopname, 0, rt_est)
         if est is not None: all_est.append(est)
@@ -257,39 +249,15 @@ def bus_sched(city, rtname):
     return render_template('time-table.html', city=city, rtname=rtname, dtt_all=dtt_all, now=now_string())
 
 if __name__ == '__main__':
+    m = re.search(r'(.*)/', __file__)
+    my_dir = m.group(1)
     parser = argparse.ArgumentParser(
         description='重新包裝少數幾個交通部的 tdx API， 以 geojson 或 html 網頁呈現',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-d', '--dbpath', type=str,
-        default='',
-        help='全國所有縣市公車路線與站牌資料庫檔案')
-#    parser.add_argument('-L', '--logpath', type=str,
-#        default=os.environ['HOME']+'/log/tdx7984.log',
-#        help='log 檔路徑')
+    parser.add_argument('-c', '--config', type=str, default=my_dir+'/tdx.ini',
+        help='設定檔路徑')
     G['args'] = parser.parse_args()
-    m = re.search(r'(.*)/', __file__)
-    my_dir = m.group(1)
-    if G['args'].dbpath == '':
-        G['args'].dbpath = f'{my_dir}/routes_stops.sqlite3'
-
-#    logging.basicConfig(
-#        # handlers=[
-#        #     logging.handlers.SysLogHandler(address='/dev/log')
-#        # ],
-#        level=logging.INFO,
-#        format='%(asctime)s %(levelname)s %(message)s',
-#        datefmt=G['date_format'],
-#    )
-#
-#    G['tdx7984_logger'] = logging.getLogger('tdx7984')
-#    qh = logging.FileHandler('/var/log/tdx7984/query.log')
-#    qh.setLevel(logging.DEBUG)
-#    qh.setFormatter(logging.Formatter(
-#        '%(asctime)s %(name)s: %(levelname)s %(message)s'))
-#    G['tdx7984_logger'].addHandler(qh)
-#
-#    werkzeug_logger = logging.getLogger('werkzeug')
-#    werkzeug_logger.setLevel(logging.INFO)
+    tdx.init(G['args'].config)
 
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=tdx.load_credential, trigger='interval', seconds=7200)
@@ -298,10 +266,12 @@ if __name__ == '__main__':
 
     # openssl req -x509 -newkey rsa:4096 -nodes -out flask-cert.pem -keyout flask-key.pem -days 36500
     # https://blog.miguelgrinberg.com/post/running-your-flask-application-over-https
+    pem_dir = tdx.G['config']['DEFAULT']['FLASK_PEM_DIR']
     app.run(
         debug=True,
         host='0.0.0.0',
         port=7984,
         request_handler=MyRequestHandler,
-        ssl_context=(os.environ['HOME']+'/secret/flask-cert.pem', os.environ['HOME']+'/secret/flask-key.pem')
+        # ssl_context=(pem_dir+'/flask-cert.pem', pem_dir+'flask-key.pem')
+        ssl_context=(pem_dir+'/flask-cert.pem', pem_dir+'/flask-key.pem')
     )
