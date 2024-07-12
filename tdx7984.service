@@ -5,8 +5,9 @@ ConditionPathExists=/opt/tdx7984/
 [Service]
 Type=simple
 ExecStart=/usr/bin/python3 /opt/tdx7984/app.py
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=journal
+StandardError=journal
+# https://github.com/dracutdevs/dracut/issues/986
 
 [Install]
 WantedBy=multi-user.target
