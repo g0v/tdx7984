@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # apt install python3-flask python3-flask-cors python3-apscheduler
 import logging, tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json
 from datetime import datetime
@@ -48,13 +50,13 @@ CORS(app)
 @app.errorhandler(Exception)
 def handle_exception(e):
     # log the exception
-    logging.exception('internal error: exception occurred')
+    logging.exception(f'{request.remote_addr} "{request.method} {request.full_path}" 500 -')
     # return a custom error page or message
     return render_template('error.html'), 500
 
 # https://ithelp.ithome.com.tw/articles/10266705?sc=iThelpR
 @app.errorhandler(404)
-def page_not_found(e):
+def page_not_found(e=None):
     # https://stackoverflow.com/questions/50346512/flask-404-catch-requested-url
     logging.warning('page not found (404) ' + request.path)
     return render_template('404.html'), 404
@@ -108,6 +110,8 @@ def gj_bus_est(city, rtname):
 @app.route('/bus/rte/<city>/<rtname>')
 def bus_rte(city, rtname):
     est = tdx.bus_est(city, rtname)
+    if len(est) < 1:
+        return page_not_found()
     empty = { 'StopSequence': '', 'est': '', 'EstimateTime': '', '': 'PlateNumb' }
     for s in est:
         if 'dir0' in s:

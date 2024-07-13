@@ -4,7 +4,7 @@ ConditionPathExists=/opt/tdx7984/
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /opt/tdx7984/app.py
+ExecStart=/opt/tdx7984/app.py
 StandardOutput=journal
 StandardError=journal
 # https://github.com/dracutdevs/dracut/issues/986

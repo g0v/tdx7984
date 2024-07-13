@@ -229,8 +229,8 @@ def bus_est(city, srt_name):
             # NWT34537 '連城景平路(暫時裁撤)'
             continue
         est_1 = stop
-        if not 'StopSequence' in stop:
-            stop['StopSequence'] = lookup_by_stopuid(stop['StopUID'], stop_info_by_uid, 'StopSequence', default=999, rtname=srt_name)
+        # if not 'StopSequence' in stop:
+        #    stop['StopSequence'] = lookup_by_stopuid(stop['StopUID'], stop_info_by_uid, 'StopSequence', default=999, rtname=srt_name)
         fill_stop_info(stop)
         if stop['Direction'] == 0 :
             est_to.append(est_1)

@@ -9,5 +9,5 @@ for ct in $(grep -Po '\b[A-Z]\w+$' cities.csv) ; do
     sleep 8
 done
 
-python3 sqlify.py -f -d ./city-stops/ routes_stops.sqlite3
+./sqlify.py -f -d ./city-stops/ routes_stops.sqlite3
 

@@ -9,7 +9,8 @@
 
     <p class="center"><a href="/bus/rte/{{ city }}/{{ rtname }}">預估到站時間</a></p>
     {% if dtt_all | length == 0 %}
-	<p>(本頁面如果是空的， 可能是因為這個縣市沒有提供精簡的發車時刻表)</p>
+	<p>(本頁面如果是空的， 有可能是沒有此路線，
+	也有可能是因為這個縣市沒有提供精簡的發車時刻表)</p>
     {% else %}
 	<div id="container" style="display: flex; justify-content: center;" >
 

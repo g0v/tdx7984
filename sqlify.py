@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import argparse, subprocess, csv, json, os, sqlite3
 from warnings import warn
 
