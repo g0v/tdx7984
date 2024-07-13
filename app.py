@@ -3,7 +3,7 @@
 # apt install python3-flask python3-flask-cors python3-apscheduler
 import logging, tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json
 from datetime import datetime
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, send_from_directory, request
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
 from werkzeug.serving import WSGIRequestHandler, _log
@@ -43,8 +43,14 @@ dictConfig(
     }
 )
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 CORS(app)
+
+# https://stackoverflow.com/a/14625619
+@app.route('/robots.txt')
+# @app.route('/sitemap.xml')
+def static_from_root():
+    return send_from_directory(app.static_folder, request.path[1:])
 
 # https://stackoverflow.com/questions/74155189/how-to-log-uncaught-exceptions-in-flask-routes-with-logging
 @app.errorhandler(Exception)
@@ -67,7 +73,7 @@ def now_string():
 
 @app.route('/')
 def hello():
-    return 'This is a flask web server'
+    return redirect("/bus/", code=302)
 
 @app.route('/bus')
 @app.route('/bus/')
@@ -155,7 +161,11 @@ def find_stop_fill_next(stopname, dir, rt_est):
     # 注意： 台北市的 EstimatedTimeOfArrival 沒有 StopSequence，
     # 但此處假設他處已幫忙填好
     samedir = [ est for est in rt_est if est['Direction']==dir ]
-    samedir = sorted(samedir, key=operator.itemgetter('StopSequence'))
+    if all('StopSequence' in est for est in rt_est):
+        samedir = sorted(samedir, key=operator.itemgetter('StopSequence'))
+    else:
+        # 新北 936
+        pass
     i = 0
     for i in range(len(samedir)):
         if samedir[i]['StopName']['Zh_tw'] == stopname: break
@@ -177,6 +187,10 @@ def find_stop_fill_next(stopname, dir, rt_est):
         samedir[focus]['next_stop'] = samedir[focus+1 if focus+1<len(samedir) else focus]
     samedir[focus]['next_vector'] = position_diff(samedir[focus]['next_stop'], samedir[focus])
     samedir[focus]['next_stop'] = samedir[focus]['next_stop']['StopName']['Zh_tw']
+    if not 'StopSequence' in samedir[focus]:
+        samedir[focus]['next_stop'] += '？'
+        # 例如新北 溫哥華社區 站牌的 936、 F250 等等路線，
+        # 欠 Sequence 資訊， 「下一站」 資料不可信
     return samedir[focus]
 
 @app.route('/bus/stop/<city>/<stopname>')

@@ -194,6 +194,15 @@ def bus_stops(city, srt_name, to_fro=3):
 #         logging.warning(f'不存在的 StopUID： {uid} [{rtname}]')
 #         return default
 def fill_stop_info(stop):
+    if not 'SubRouteUID' in stop:
+        # 新北 936
+        if 'RouteUID' in stop:
+            stop['SubRouteUID'] = stop['RouteUID']
+        else:
+            logging.warning('這個站牌沒有 SubRouteUID 也沒有 RouteUID： {} [{}]'.format(
+                stop['StopUID'], stop['StopName']['Zh_tw']
+            ))
+            return
     dbcursor = G['dbcon'].cursor()
     dbcursor.execute(
         'select * from stop where uid="{}" and srt_uid="{}" and dir="{}"'.format(
