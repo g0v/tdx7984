@@ -3,7 +3,7 @@
 # apt install python3-flask python3-flask-cors python3-apscheduler
 import logging, tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json
 from datetime import datetime
-from flask import Flask, jsonify, render_template, send_from_directory, request
+from flask import Flask, jsonify, render_template, send_from_directory, request, redirect
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
 from werkzeug.serving import WSGIRequestHandler, _log
@@ -72,7 +72,7 @@ def now_string():
     return datetime.now().strftime(G['date_format'])
 
 @app.route('/')
-def hello():
+def doc_root():
     return redirect("/bus/", code=302)
 
 @app.route('/bus')
@@ -111,11 +111,20 @@ def gj_bus_pos(city, rtname):
 
 @app.route('/geojson/bus/est/<city>/<rtname>')
 def gj_bus_est(city, rtname):
-    return jsonify( tdx.bus_est(city, rtname) )
+    return jsonify( tdx.richer_bus_est(city, rtname) )
 
 @app.route('/bus/rte/<city>/<rtname>')
 def bus_rte(city, rtname):
-    est = tdx.bus_est(city, rtname)
+    est = tdx.richer_bus_est(city, rtname)
+    # logging.info('% of est w/ StopSequence: {}/{} est'.format(len([True for s in est if 'StopSequence' in s]), len(est)))
+    if not all('StopSequence' in s for s in est):
+        est_pair = [[], []]
+        for s in est:
+            s['est_min'] = int(s['EstimateTime']/60) if 'EstimateTime' in s and s['EstimateTime'] >= 0 else 9999
+            est_pair[s['Direction']].append(s)
+        # logging.info('est_pair: {} + {}'.format(len(est_pair[0]), len(est_pair[1])))
+        return render_template('route-est-seq-missing.html', city=city, rtname=rtname, est_pair=est_pair, now=now_string())
+    est = tdx.merged_bus_est(est)
     if len(est) < 1:
         return page_not_found()
     empty = { 'StopSequence': '', 'est': '', 'EstimateTime': '', '': 'PlateNumb' }
@@ -188,7 +197,7 @@ def find_stop_fill_next(stopname, dir, rt_est):
     samedir[focus]['next_vector'] = position_diff(samedir[focus]['next_stop'], samedir[focus])
     samedir[focus]['next_stop'] = samedir[focus]['next_stop']['StopName']['Zh_tw']
     if not 'StopSequence' in samedir[focus]:
-        samedir[focus]['next_stop'] += '？'
+        samedir[focus]['next_stop'] = '？'
         # 例如新北 溫哥華社區 站牌的 936、 F250 等等路線，
         # 欠 Sequence 資訊， 「下一站」 資料不可信
     return samedir[focus]

@@ -185,17 +185,8 @@ def bus_stops(city, srt_name, to_fro=3):
         route = [ s for srt in route for s in srt['Stops'] ]
     return route
 
-# def lookup_by_stopuid(uid, table, key, default='', rtname=''):
-#     if uid in table:
-#         return table[uid][key]
-#     else:
-#         # 台北 藍28
-#         # warn(f'不存在的 StopUID： {uid} [{rtname}]')
-#         logging.warning(f'不存在的 StopUID： {uid} [{rtname}]')
-#         return default
 def fill_stop_info(stop):
     if not 'SubRouteUID' in stop:
-        # 新北 936
         if 'RouteUID' in stop:
             stop['SubRouteUID'] = stop['RouteUID']
         else:
@@ -205,46 +196,58 @@ def fill_stop_info(stop):
             return
     dbcursor = G['dbcon'].cursor()
     dbcursor.execute(
-        'select * from stop where uid="{}" and srt_uid="{}" and dir="{}"'.format(
+        'select * from stop where uid="{}" and srt_uid ="{}" and dir="{}"'.format(
             stop['StopUID'], stop['SubRouteUID'], stop['Direction']
         )
     )
-    # https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query
-    ans = dbcursor.fetchone()
-    dbcursor.close()
-    if ans:
-        stop.update(ans)
-    else:
-        logging.warning('不存在的 StopUID/SubRouteUID/Direction： {}/{}/{} [{}]'.format(
-            stop['StopUID'], stop['SubRouteUID'], stop['Direction'], stop['StopName']['Zh_tw']
-        ))
-
-def bus_est(city, srt_name):
-    # https://motc-ptx.gitbook.io/tdx-zi-liao-shi-yong-kui-hua-bao-dian/data_notice/public_transportation_data/bus_static_data 站牌、站位與組站位間之差異
-    ans = query(f'Bus/EstimatedTimeOfArrival/City/{city_ename(city)}/{srt_name}')
-    if ans == []: return []
-    n = len(list(filter(lambda r: 'StopSequence' in r, ans)))
-    if float(n)/len(ans)<0.2:
-        # 台北市的 EstimatedTimeOfArrival 好像都沒有 StopSequence
-        stop_info_by_uid = dict(
-            (s['StopUID'], s) for s in bus_stops(city, srt_name, to_fro=2)
+    ans = dbcursor.fetchall()
+    if len(ans)<1:
+        # 新北 243 的 SubRouteUID 是 NWT101720，
+        # 但是 EstimatedTimeOfArrival 傳回來的卻是 NWT10172
+        # 所以如果 (有 index 的) 等號精準查詢失敗，
+        # 要試著用 (很慢的) like 查詢。
+        dbcursor.execute(
+            'select * from stop where uid="{}" and srt_uid like "{}%" and dir="{}"'.format(
+                stop['StopUID'], stop['SubRouteUID'], stop['Direction']
+            )
         )
-    est_to = [] ; est_fro = []
-#    logging.warning(json.dumps(ans, ensure_ascii=False))
-    for stop in ans:
+        ans = dbcursor.fetchall()
+        if len(ans)<1:
+            # 新北 936 的 SubRouteUID 是 NWT157631，
+            # 但是 EstimatedTimeOfArrival 傳回來的卻是 NWT16583
+            logging.warning('不存在的 StopUID/SubRouteUID/Direction： {}/{}/{} [{}]'.format(
+                stop['StopUID'], stop['SubRouteUID'], stop['Direction'], stop['StopName']['Zh_tw']
+            ))
+            return
+        elif len(ans)>1:
+            logging.warning('重複的 StopUID/SubRouteUID/Direction： {}/{}/{} [{}] {}'.format(
+                stop['StopUID'], stop['SubRouteUID'], stop['Direction'], stop['StopName']['Zh_tw'], [s['srt_uid'] for s in ans]
+            ))
+            # 不管啦， 就取 ans[0]
+    # https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query
+    dbcursor.close()
+    stop.update(ans[0])
+    stop['StopSequence'] = stop['sequence']
+
+def richer_bus_est(city, srt_name):
+    # https://motc-ptx.gitbook.io/tdx-zi-liao-shi-yong-kui-hua-bao-dian/data_notice/public_transportation_data/bus_static_data 站牌、站位與組站位間之差異
+    ans = []
+    for stop in query(f'Bus/EstimatedTimeOfArrival/City/{city_ename(city)}/{srt_name}'):
         if stop['RouteName']['Zh_tw'] != srt_name: continue
         # 台北市沒有 SubRouteID？ 例如 243、 307
-        if '裁撤' in stop['StopName']['Zh_tw']:
-            # NWT34537 '連城景平路(暫時裁撤)'
-            continue
-        est_1 = stop
-        # if not 'StopSequence' in stop:
-        #    stop['StopSequence'] = lookup_by_stopuid(stop['StopUID'], stop_info_by_uid, 'StopSequence', default=999, rtname=srt_name)
+        if '裁撤' in stop['StopName']['Zh_tw']: continue
+        # NWT34537 '連城景平路(暫時裁撤)'
         fill_stop_info(stop)
+        ans.append(stop)
+    return ans
+
+def merged_bus_est(est_list):
+    est_to = [] ; est_fro = []
+    for stop in est_list:
         if stop['Direction'] == 0 :
-            est_to.append(est_1)
+            est_to.append(stop)
         else:
-            est_fro.append(est_1)
+            est_fro.append(stop)
     merged = merge_dir(est_to, est_fro, keep_dup=True)
     deduped = []
     i = 0
@@ -293,6 +296,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     init(args.config)
 #    ans = bus_stops(args.city, args.route_name)
-    ans = bus_est(args.city, args.route_name)
+    ans = merged_bus_est(richer_bus_est(args.city, args.route_name))
     logging.info(json.dumps(ans, ensure_ascii=False))
 

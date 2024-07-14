@@ -1,0 +1,34 @@
+<html>
+<head>
+<meta charset="UTF-8" />
+<link type="text/css" rel="stylesheet" href="{{ url_for('static',filename='tdx.css') }}" />
+<title>tdx7984 "去坐巴士"</title>
+</head>
+<body>
+    <h1>{{ rtname }} @ {{ city }} </h1>
+
+    <p>[本路線欠缺 Sequence 欄位， 無法排序、 無法合併去回程資料]</p>
+    <p class="center"><a href="/bus/rte/{{ city }}/{{ rtname }}">預估到站時間</a></p>
+    <div id="container" style="display: flex; justify-content: center;" >
+	{% for est in est_pair %}
+	<div style="margin:3em">
+	    <h2 style="text-align: center">{{ rtname }}</h2>
+	    <table border="1" class="center">
+		<tr> <th>站名 <th>預估 <th>車牌 <th>順序
+		{% for stop in est %}
+		<tr>
+		    <td><a href="/bus/stop/{{ city }}/{{ stop['StopName']['Zh_tw'] }}">{{ stop['StopName']['Zh_tw'] }}</a></td>
+		    <td>{{ stop['est_min'] }}</td>
+		    <td>{{ stop['PlateNumb'] }}</td>
+		    <td>{{ stop['StopSequence'] }}</td>
+		</tr>
+		{% endfor %}
+	    </table>
+	</div>
+	{% endfor %}
+    </div>
+
+    {% include "footer.html" %}
+</body>
+</html>
+
