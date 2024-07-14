@@ -116,7 +116,14 @@ def gj_bus_est(city, rtname):
 @app.route('/bus/rte/<city>/<rtname>')
 def bus_rte(city, rtname):
     est = tdx.fill_stops_info_along_srt(tdx.bus_est(city, rtname))
-    if not all('StopSequence' in s for s in est):
+    missing_seq = [s for s in est if not 'StopSequence' in s]
+    if float(len(missing_seq)) / len(est) < 0.1:
+        # 台北 208 只有 「捷運公館站」 欠缺 StopSequence、
+        # 台北 235 只有 「仁愛安和路口」 欠缺 StopSequence
+        # 還是盡力試著合併去回程站牌吧..
+        for s in missing_seq:
+            s['StopSequence'] = -1 if s['Direction']==0 else 999
+    else:
         est_pair = [[], []]
         for s in est:
             s['est_min'] = int(s['EstimateTime']/60) if 'EstimateTime' in s and s['EstimateTime'] >= 0 else 9999

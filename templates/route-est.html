@@ -28,6 +28,9 @@
         {% endfor %}
     </table>
 
+    <p class="center">* 站牌順序若是超出 0~99， 表示 tdx 傳回的資料裡沒有站牌順序，
+    tdx7984 只好胡亂指定； 它會被放在錯誤的位置。</p>
+
     <p class="center"><a href="/bus/sched/{{ city }}/{{ rtname }}">{{ rtname}} 發車時刻表</a> (只有少數縣市才有)</p>
 
     {% include "footer.html" %}
