@@ -102,6 +102,7 @@ def geojify(point, coord_path='', name_path=''):
     return ans
     
 def merge_dir(stops_to, stops_fro, keep_dup=False):
+    # logging.debug('# of stops_to and stops_fro: {} {}'.format(len(stops_to), len(stops_fro)))
     stops_to = sorted(stops_to, key=itemgetter('StopSequence'))
     stops_fro = sorted(stops_fro, key=itemgetter('StopSequence'), reverse=True)
     # logging.warning(json.dumps([ x['StopName']['Zh_tw'] for x in stops_to], ensure_ascii=False))
@@ -113,7 +114,7 @@ def merge_dir(stops_to, stops_fro, keep_dup=False):
         by_name_fro[ s['StopName']['Zh_tw'] ] = s
     i_to = 0 ; i_fro = 0 ; ans = []
     while i_to < len(stops_to) and i_fro < len(stops_fro) :
-        # logging.warning(i_to, stops_to[i_to]['StopName']['Zh_tw'], i_fro, stops_fro[i_fro]['StopName']['Zh_tw'])
+        # logging.debug('{} {} {} {}'.format(i_to, stops_to[i_to]['StopName']['Zh_tw'], stops_fro[i_fro]['StopName']['Zh_tw'], i_fro))
         if stops_to[i_to]['StopName']['Zh_tw'] ==  stops_fro[i_fro]['StopName']['Zh_tw'] :
             ans.append(stops_to[i_to])
             if keep_dup:
@@ -131,6 +132,7 @@ def merge_dir(stops_to, stops_fro, keep_dup=False):
             # 南投/3 台北/310 會讓流程走到這裡
             i_to += 1
             i_fro += 1
+    # logging.debug('# of ans, i_to, i_fro: {} {} {}'.format(len(ans), i_to, i_fro)) 
     ans += stops_to[i_to:] + stops_fro[i_fro:]
     return ans
 
@@ -140,6 +142,10 @@ def bus_pos(city, srt_name, to_fro=2):
     if to_fro < 2:
         ans = [ b for b in ans if b['Direction']==to_fro ]
     return ans
+
+def bus_est(city, srt_name):
+    ans = stops_need_srt_key(query(f'Bus/EstimatedTimeOfArrival/City/{city_ename(city)}/{srt_name}'))
+    return [ s for s in ans if srt_name==s['SubRouteName']['Zh_tw'] ]
 
 def bus_stops(city, srt_name, to_fro=3):
     # to_fro: 0 去程 / 1 回程 / 2 全部 / 3 聯集， 刪除重複
@@ -185,59 +191,98 @@ def bus_stops(city, srt_name, to_fro=3):
         route = [ s for srt in route for s in srt['Stops'] ]
     return route
 
-def fill_stop_info(stop):
-    if not 'SubRouteUID' in stop:
-        if 'RouteUID' in stop:
-            stop['SubRouteUID'] = stop['RouteUID']
-        else:
-            logging.warning('這個站牌沒有 SubRouteUID 也沒有 RouteUID： {} [{}]'.format(
-                stop['StopUID'], stop['StopName']['Zh_tw']
-            ))
-            return
+def stops_need_srt_key(stops):
+    # 台北市跟新北市沒有 SubRouteUID？ 例如 243、 307
+    # 拿 RouteUID 來補。 SubRouteName 也是。
+    # 可以處理一個 stop 或一整個 list 的 stops
+    if not isinstance(stops, (list, tuple)):
+        stops = [stops]
+    for s in stops:
+        if not 'SubRouteName' in s:
+            if 'RouteName' in s:
+                s['SubRouteName'] = s['RouteName']
+            else:
+                s['SubRouteName'] = {'Zh_tw': '不明'}
+                logging.warning('這個站牌沒有 SubRouteName 也沒有 RouteName： ' + json.dumps(s, ensure_ascii=False))
+        if not 'SubRouteUID' in s:
+            if 'RouteUID' in s:
+                s['SubRouteUID'] = s['RouteUID']
+            else:
+                s['SubRouteUID'] = '不明'
+                logging.warning('這個站牌沒有 SubRouteUID 也沒有 RouteUID： ' + json.dumps(s, ensure_ascii=False))
+    return stops
+
+#def fill_stop_info(stop):
+#    stops_need_srt_key(stop)
+#    dbcursor = G['dbcon'].cursor()
+#    dbcursor.execute(
+#        'select * from stop where uid="{}" and srt_uid ="{}" and dir="{}"'.format(
+#            stop['StopUID'], stop['SubRouteUID'], stop['Direction']
+#        )
+#    )
+#    ans = dbcursor.fetchall()
+#    if len(ans)<1:
+#        # 新北 243 的 SubRouteUID 是 NWT101720，
+#        # 但是 EstimatedTimeOfArrival 傳回來的卻是 NWT10172
+#        # 所以如果 (有 index 的) 等號精準查詢失敗，
+#        # 要試著用 (很慢的) like 查詢。
+#        dbcursor.execute(
+#            'select * from stop where uid="{}" and srt_uid like "{}%" and dir="{}"'.format(
+#                stop['StopUID'], stop['SubRouteUID'], stop['Direction']
+#            )
+#        )
+#        ans = dbcursor.fetchall()
+#        if len(ans)<1:
+#            # 新北 936 的 SubRouteUID 是 NWT157631，
+#            # 但是 EstimatedTimeOfArrival 傳回來的卻是 NWT16583
+#            logging.warning('不存在的 StopUID/SubRouteUID/Direction： {}/{}/{} [{}]'.format(
+#                stop['StopUID'], stop['SubRouteUID'], stop['Direction'], stop['StopName']['Zh_tw']
+#            ))
+#            return
+#        elif len(ans)>1:
+#            logging.warning('重複的 StopUID/SubRouteUID/Direction： {}/{}/{} [{}] {}'.format(
+#                stop['StopUID'], stop['SubRouteUID'], stop['Direction'], stop['StopName']['Zh_tw'], [s['srt_uid'] for s in ans]
+#            ))
+#            # 不管啦， 就取 ans[0]
+#    # https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query
+#    dbcursor.close()
+#    stop.update(ans[0])
+#    stop['StopSequence'] = stop['sequence']
+
+def fill_stops_info_along_srt(stops_along_srt):
+    stops_need_srt_key(stops_along_srt)
+    srt_uid = stops_along_srt[0]['SubRouteUID']
+    srt_name = stops_along_srt[0]['SubRouteName']['Zh_tw']
+    if len(stops_along_srt) > 1:
+        if not (srt_uid==stops_along_srt[1]['SubRouteUID'] and srt_uid==stops_along_srt[-1]['SubRouteUID']):
+            logging.warning('混雜的 SubRouteUID: ' + json.dumps([(s['SubRouteUID'], s['StopName']['Zh_tw']) for s in stops_along_srt], ensure_ascii=False))
     dbcursor = G['dbcon'].cursor()
-    dbcursor.execute(
-        'select * from stop where uid="{}" and srt_uid ="{}" and dir="{}"'.format(
-            stop['StopUID'], stop['SubRouteUID'], stop['Direction']
-        )
-    )
+    dbcursor.execute( f'select * from stop where srt_uid ="{srt_uid}"' )
     ans = dbcursor.fetchall()
-    if len(ans)<1:
-        # 新北 243 的 SubRouteUID 是 NWT101720，
-        # 但是 EstimatedTimeOfArrival 傳回來的卻是 NWT10172
-        # 所以如果 (有 index 的) 等號精準查詢失敗，
-        # 要試著用 (很慢的) like 查詢。
-        dbcursor.execute(
-            'select * from stop where uid="{}" and srt_uid like "{}%" and dir="{}"'.format(
-                stop['StopUID'], stop['SubRouteUID'], stop['Direction']
-            )
-        )
-        ans = dbcursor.fetchall()
-        if len(ans)<1:
-            # 新北 936 的 SubRouteUID 是 NWT157631，
-            # 但是 EstimatedTimeOfArrival 傳回來的卻是 NWT16583
-            logging.warning('不存在的 StopUID/SubRouteUID/Direction： {}/{}/{} [{}]'.format(
-                stop['StopUID'], stop['SubRouteUID'], stop['Direction'], stop['StopName']['Zh_tw']
-            ))
-            return
-        elif len(ans)>1:
-            logging.warning('重複的 StopUID/SubRouteUID/Direction： {}/{}/{} [{}] {}'.format(
-                stop['StopUID'], stop['SubRouteUID'], stop['Direction'], stop['StopName']['Zh_tw'], [s['srt_uid'] for s in ans]
-            ))
-            # 不管啦， 就取 ans[0]
-    # https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query
     dbcursor.close()
-    stop.update(ans[0])
-    stop['StopSequence'] = stop['sequence']
+    if len(ans)<1:
+        logging.warning(f'不存在的 SubRouteUID： {srt_uid} [{srt_name}]')
+    ans = { s['uid']: s for s in ans } # 轉換成以 StopUID 為 key 的 dict
+    for stop in stops_along_srt:
+        if stop['StopUID'] in ans:
+            stop.update(ans[stop['StopUID']])
+        # 從 db 讀來的 sequence 有問題? 可以拿台中 200 號實驗
+        # 總之如果原來 estimate 裡面已有 StopSequence， 就不要去動它
+        if 'sequence' in stop and not 'StopSequence' in stop:
+            stop['StopSequence'] = stop['sequence']
+    return stops_along_srt
+
+def fill_stop_info(stop):
+    return fill_stops_info_along_srt([stop])
 
 def richer_bus_est(city, srt_name):
     # https://motc-ptx.gitbook.io/tdx-zi-liao-shi-yong-kui-hua-bao-dian/data_notice/public_transportation_data/bus_static_data 站牌、站位與組站位間之差異
     ans = []
     for stop in query(f'Bus/EstimatedTimeOfArrival/City/{city_ename(city)}/{srt_name}'):
-        if stop['RouteName']['Zh_tw'] != srt_name: continue
-        # 台北市沒有 SubRouteID？ 例如 243、 307
+        fill_stop_info(stop)
+        if stop['SubRouteName']['Zh_tw'] != srt_name: continue
         if '裁撤' in stop['StopName']['Zh_tw']: continue
         # NWT34537 '連城景平路(暫時裁撤)'
-        fill_stop_info(stop)
         ans.append(stop)
     return ans
 

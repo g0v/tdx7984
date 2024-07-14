@@ -115,8 +115,7 @@ def gj_bus_est(city, rtname):
 
 @app.route('/bus/rte/<city>/<rtname>')
 def bus_rte(city, rtname):
-    est = tdx.richer_bus_est(city, rtname)
-    # logging.info('% of est w/ StopSequence: {}/{} est'.format(len([True for s in est if 'StopSequence' in s]), len(est)))
+    est = tdx.fill_stops_info_along_srt(tdx.bus_est(city, rtname))
     if not all('StopSequence' in s for s in est):
         est_pair = [[], []]
         for s in est:
@@ -180,7 +179,7 @@ def find_stop_fill_next(stopname, dir, rt_est):
         if samedir[i]['StopName']['Zh_tw'] == stopname: break
     if i >= len(samedir): return None
     focus = i
-    city_code = samedir[focus]['RouteUID'][:3]
+    city_code = samedir[focus]['SubRouteUID'][:3]
     samedir[focus]['rte_city'] = tdx.city_list['by_code'][city_code]['ename']
     if 'PlateNumb' in samedir[0]:
         for i in range(len(samedir)-1):
@@ -244,7 +243,7 @@ def bus_stop(city, stopname):
         if srt_name in visited: continue
         query_log += srt_name + ', '
         visited[srt_name] = True
-        raw_est = list( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{this_srt_city_ename}/{srt_name}') )
+        raw_est = tdx.stops_need_srt_key( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{this_srt_city_ename}/{srt_name}') )
         if len(raw_est) < 1: continue
         # 新北 243寵物公車
         # 台北的估計到站時刻資訊不含 StopSequence
@@ -254,15 +253,8 @@ def bus_stop(city, stopname):
         rt_est = []     # 一條路線的 (最多) 兩筆預估記錄
         for est in raw_est:
             # 本路線上所有站牌的到站時刻估計
-            # 台北市沒有 SubRouteName
-            if 'SubRouteName' in est:
-                if est['SubRouteName']['Zh_tw'] != srt_name: continue
-            elif 'RouteName' in est:
-                if est['RouteName']['Zh_tw'] != srt_name: continue
-                est['SubRouteName'] = est['RouteName']
-            else:
-                logging.error(f'est 內找不到 (Sub)RouteName: {stopname}/{srt_name} ## ' + str(est))
-                continue
+            if est['SubRouteName']['Zh_tw'] != srt_name: continue
+            # logging.error(f'est 內找不到 SubRouteName: {stopname}/{srt_name} ## ' + str(est))
             est['est_min'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
             tdx.fill_stop_info(est)
             rt_est.append(est)
