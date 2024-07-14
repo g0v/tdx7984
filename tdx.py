@@ -212,45 +212,10 @@ def stops_need_srt_key(stops):
                 logging.warning('這個站牌沒有 SubRouteUID 也沒有 RouteUID： ' + json.dumps(s, ensure_ascii=False))
     return stops
 
-#def fill_stop_info(stop):
-#    stops_need_srt_key(stop)
-#    dbcursor = G['dbcon'].cursor()
-#    dbcursor.execute(
-#        'select * from stop where uid="{}" and srt_uid ="{}" and dir="{}"'.format(
-#            stop['StopUID'], stop['SubRouteUID'], stop['Direction']
-#        )
-#    )
-#    ans = dbcursor.fetchall()
-#    if len(ans)<1:
-#        # 新北 243 的 SubRouteUID 是 NWT101720，
-#        # 但是 EstimatedTimeOfArrival 傳回來的卻是 NWT10172
-#        # 所以如果 (有 index 的) 等號精準查詢失敗，
-#        # 要試著用 (很慢的) like 查詢。
-#        dbcursor.execute(
-#            'select * from stop where uid="{}" and srt_uid like "{}%" and dir="{}"'.format(
-#                stop['StopUID'], stop['SubRouteUID'], stop['Direction']
-#            )
-#        )
-#        ans = dbcursor.fetchall()
-#        if len(ans)<1:
-#            # 新北 936 的 SubRouteUID 是 NWT157631，
-#            # 但是 EstimatedTimeOfArrival 傳回來的卻是 NWT16583
-#            logging.warning('不存在的 StopUID/SubRouteUID/Direction： {}/{}/{} [{}]'.format(
-#                stop['StopUID'], stop['SubRouteUID'], stop['Direction'], stop['StopName']['Zh_tw']
-#            ))
-#            return
-#        elif len(ans)>1:
-#            logging.warning('重複的 StopUID/SubRouteUID/Direction： {}/{}/{} [{}] {}'.format(
-#                stop['StopUID'], stop['SubRouteUID'], stop['Direction'], stop['StopName']['Zh_tw'], [s['srt_uid'] for s in ans]
-#            ))
-#            # 不管啦， 就取 ans[0]
-#    # https://stackoverflow.com/questions/3300464/how-can-i-get-dict-from-sqlite-query
-#    dbcursor.close()
-#    stop.update(ans[0])
-#    stop['StopSequence'] = stop['sequence']
-
 def fill_stops_info_along_srt(stops_along_srt):
+    # https://motc-ptx.gitbook.io/tdx-zi-liao-shi-yong-kui-hua-bao-dian/data_notice/public_transportation_data/bus_static_data 站牌、站位與組站位間之差異
     stops_need_srt_key(stops_along_srt)
+    if len(stops_along_srt) < 1: return []
     srt_uid = stops_along_srt[0]['SubRouteUID']
     srt_name = stops_along_srt[0]['SubRouteName']['Zh_tw']
     if len(stops_along_srt) > 1:
@@ -270,21 +235,11 @@ def fill_stops_info_along_srt(stops_along_srt):
         # 總之如果原來 estimate 裡面已有 StopSequence， 就不要去動它
         if 'sequence' in stop and not 'StopSequence' in stop:
             stop['StopSequence'] = stop['sequence']
+        # NWT34537 '連城景平路(暫時裁撤)'
     return stops_along_srt
 
 def fill_stop_info(stop):
     return fill_stops_info_along_srt([stop])
-
-def richer_bus_est(city, srt_name):
-    # https://motc-ptx.gitbook.io/tdx-zi-liao-shi-yong-kui-hua-bao-dian/data_notice/public_transportation_data/bus_static_data 站牌、站位與組站位間之差異
-    ans = []
-    for stop in query(f'Bus/EstimatedTimeOfArrival/City/{city_ename(city)}/{srt_name}'):
-        fill_stop_info(stop)
-        if stop['SubRouteName']['Zh_tw'] != srt_name: continue
-        if '裁撤' in stop['StopName']['Zh_tw']: continue
-        # NWT34537 '連城景平路(暫時裁撤)'
-        ans.append(stop)
-    return ans
 
 def merged_bus_est(est_list):
     est_to = [] ; est_fro = []
@@ -341,6 +296,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     init(args.config)
 #    ans = bus_stops(args.city, args.route_name)
-    ans = merged_bus_est(richer_bus_est(args.city, args.route_name))
+    ans = merged_bus_est(fill_stops_info_along_srt(bus_est(args.city, args.route_name)))
     logging.info(json.dumps(ans, ensure_ascii=False))
 

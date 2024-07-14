@@ -111,7 +111,7 @@ def gj_bus_pos(city, rtname):
 
 @app.route('/geojson/bus/est/<city>/<rtname>')
 def gj_bus_est(city, rtname):
-    return jsonify( tdx.richer_bus_est(city, rtname) )
+    return jsonify( tdx.fill_stops_info_along_srt(tdx.bus_est(city, rtname)) )
 
 @app.route('/bus/rte/<city>/<rtname>')
 def bus_rte(city, rtname):
@@ -243,7 +243,7 @@ def bus_stop(city, stopname):
         if srt_name in visited: continue
         query_log += srt_name + ', '
         visited[srt_name] = True
-        raw_est = tdx.stops_need_srt_key( tdx.query(f'Bus/EstimatedTimeOfArrival/City/{this_srt_city_ename}/{srt_name}') )
+        raw_est = tdx.fill_stops_info_along_srt(tdx.bus_est(this_srt_city_ename, srt_name))
         if len(raw_est) < 1: continue
         # 新北 243寵物公車
         # 台北的估計到站時刻資訊不含 StopSequence
@@ -256,7 +256,6 @@ def bus_stop(city, stopname):
             if est['SubRouteName']['Zh_tw'] != srt_name: continue
             # logging.error(f'est 內找不到 SubRouteName: {stopname}/{srt_name} ## ' + str(est))
             est['est_min'] = est['EstimateTime']/60 if 'EstimateTime' in est else 9999
-            tdx.fill_stop_info(est)
             rt_est.append(est)
         est = find_stop_fill_next(stopname, 0, rt_est)
         if est is not None: all_est.append(est)
