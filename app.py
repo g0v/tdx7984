@@ -122,7 +122,7 @@ def bus_rte(city, rtname):
         # 台北 235 只有 「仁愛安和路口」 欠缺 StopSequence
         # 還是盡力試著合併去回程站牌吧..
         for s in missing_seq:
-            s['StopSequence'] = -1 if s['Direction']==0 else 999
+            s['StopSequence'] = 999 if s['Direction']==0 else -1
     else:
         est_pair = [[], []]
         for s in est:
