@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # apt install python3-flask python3-flask-cors python3-apscheduler
-import logging, tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json
+import logging, tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json, copy
 from datetime import datetime
 from flask import Flask, jsonify, render_template, send_from_directory, request, redirect
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -175,17 +175,25 @@ def find_stop_fill_next(stopname, dir, rt_est):
 
     # 注意： 台北市的 EstimatedTimeOfArrival 沒有 StopSequence，
     # 但此處假設他處已幫忙填好
+
     samedir = [ est for est in rt_est if est['Direction']==dir ]
     if all('StopSequence' in est for est in rt_est):
         samedir = sorted(samedir, key=operator.itemgetter('StopSequence'))
     else:
         # 新北 936
         pass
-    i = 0
-    for i in range(len(samedir)):
-        if samedir[i]['StopName']['Zh_tw'] == stopname: break
-    if i >= len(samedir): return None
-    focus = i
+    if len(samedir) < 1: return None
+    srt_name = samedir[0]['SubRouteName']['Zh_tw']
+    stop_names_in_rt = [samedir[i]['StopName']['Zh_tw'] for i in range(len(samedir))]
+    if stopname in stop_names_in_rt:
+        focus = stop_names_in_rt.index(stopname)
+    else:
+        logging.warning(f'? 路線 {srt_name} 的預計抵達陣列裡找不到站牌 {stopname}')
+        return None
+    if focus == len(samedir)-1:
+        return None
+    #if srt_name[1:3] == '00':
+    #    logging.debug('f_s_f_n: {} {} {}'.format(srt_name, focus, stop_names_in_rt[focus-2:focus+3]))
     city_code = samedir[focus]['SubRouteUID'][:3]
     samedir[focus]['rte_city'] = tdx.city_list['by_code'][city_code]['ename']
     if 'PlateNumb' in samedir[0]:
@@ -200,6 +208,7 @@ def find_stop_fill_next(stopname, dir, rt_est):
     else:
         # 台北市的 EstimatedTimeOfArrival 沒有 PlateNumb
         samedir[focus]['next_stop'] = samedir[focus+1 if focus+1<len(samedir) else focus]
+
     samedir[focus]['next_vector'] = position_diff(samedir[focus]['next_stop'], samedir[focus])
     samedir[focus]['next_stop'] = samedir[focus]['next_stop']['StopName']['Zh_tw']
     if not 'StopSequence' in samedir[focus]:
@@ -241,10 +250,10 @@ def bus_stop(city, stopname):
     all_est = []
     # 一開始先按照 srt_name 把每一對 (此路線的去回雙向) 估計資訊存入 all_est
     query_log = f'[{stopname}] '
-    for st in stops:
+    for focus_stop in stops:
         # 隸屬於某條路線的某個方向的一個 stop
-        srt_name = st['srt_cname']
-        this_srt_city_code = st['srt_uid'][:3]
+        srt_name = focus_stop['srt_cname']
+        this_srt_city_code = focus_stop['srt_uid'][:3]
         this_srt_city_ename = tdx.city_list['by_code'][this_srt_city_code]['ename']
         # 每一個站牌名稱可能有兩個 (方向的) 估計到站時刻
         if srt_name in visited: continue
@@ -291,10 +300,10 @@ if __name__ == '__main__':
     G['args'] = parser.parse_args()
     tdx.init(G['args'].config)
 
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(func=tdx.load_credential, trigger='interval', seconds=7200)
-    atexit.register(lambda: scheduler.shutdown())
-    scheduler.start()
+#    scheduler = BackgroundScheduler()
+#    scheduler.add_job(func=tdx.load_credential, trigger='interval', seconds=7200)
+#    atexit.register(lambda: scheduler.shutdown())
+#    scheduler.start()
 
     # openssl req -x509 -newkey rsa:4096 -nodes -out flask-cert.pem -keyout flask-key.pem -days 36500
     # https://blog.miguelgrinberg.com/post/running-your-flask-application-over-https

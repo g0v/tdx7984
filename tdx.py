@@ -235,6 +235,11 @@ def fill_stops_info_along_srt(stops_along_srt):
         # 總之如果原來 estimate 裡面已有 StopSequence， 就不要去動它
         if 'sequence' in stop and not 'StopSequence' in stop:
             stop['StopSequence'] = stop['sequence']
+        if 'longitude' in stop and not 'StopPosition' in stop:
+            stop['StopPosition'] = {
+                'PositionLat': stop['latitude'],
+                'PositionLon': stop['longitude'],
+            }
         # NWT34537 '連城景平路(暫時裁撤)'
     return stops_along_srt
 
