@@ -306,6 +306,5 @@ if __name__ == '__main__':
         host='0.0.0.0',
         port=7984,
         request_handler=MyRequestHandler,
-        # ssl_context=(pem_dir+'/flask-cert.pem', pem_dir+'flask-key.pem')
         ssl_context=(pem_dir+'/flask-cert.pem', pem_dir+'/flask-key.pem')
     )
