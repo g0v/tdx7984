@@ -226,7 +226,14 @@ def fill_stops_info_along_srt(stops_along_srt):
     ans = dbcursor.fetchall()
     dbcursor.close()
     if len(ans)<1:
-        logging.warning(f'不存在的 SubRouteUID： {srt_uid} [{srt_name}]')
+        # 台北市 221 的 SubRouteUID， 有時叫做 TPE10415 有時叫做 TPE104150
+        # 再試試看 (無法用 index， 較慢的) like：
+        dbcursor = G['dbcon'].cursor()
+        dbcursor.execute( f'select * from stop where srt_uid like "{srt_uid}%"' )
+        ans = dbcursor.fetchall()
+        dbcursor.close()
+        if len(ans)<1:
+            logging.warning(f'不存在的 SubRouteUID： {srt_uid} [{srt_name}]')
     ans = { s['uid']: s for s in ans } # 轉換成以 StopUID 為 key 的 dict
     for stop in stops_along_srt:
         if stop['StopUID'] in ans:
