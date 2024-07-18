@@ -1,3 +1,3 @@
 0 1 * * * root systemctl stop tdx7984
 0 3 * * sun root systemctl stop tdx7984 ; renew-stop-info.sh
-0 5 * * * root systemctl start tdx7984
+0 5 * * * root systemctl restart tdx7984 # 如果只用 start 可能就不會讀到新的 credential

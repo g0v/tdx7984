@@ -116,6 +116,7 @@ def gj_bus_est(city, rtname):
 @app.route('/bus/rte/<city>/<rtname>')
 def bus_rte(city, rtname):
     est = tdx.fill_stops_info_along_srt(tdx.bus_est(city, rtname))
+    if len(est) < 1: return page_not_found()
     missing_seq = [s for s in est if not 'StopSequence' in s]
     if float(len(missing_seq)) / len(est) < 0.1:
         # 台北 208 只有 「捷運公館站」 欠缺 StopSequence、
@@ -131,8 +132,6 @@ def bus_rte(city, rtname):
         # logging.info('est_pair: {} + {}'.format(len(est_pair[0]), len(est_pair[1])))
         return render_template('route-est-seq-missing.html', city=city, rtname=rtname, est_pair=est_pair, now=now_string())
     est = tdx.merged_bus_est(est)
-    if len(est) < 1:
-        return page_not_found()
     empty = { 'StopSequence': '', 'est': '', 'EstimateTime': '', '': 'PlateNumb' }
     for s in est:
         if 'dir0' in s:
