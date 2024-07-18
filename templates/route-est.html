@@ -16,7 +16,12 @@
     <table border="1" class="center">
 	<tr> <th>順序 <th>車牌 <th>預估 <th>站名 <th>預估 <th>車牌 <th>順序
         {% for stop in est %}
-        <tr>
+        <tr
+	    {%  set seq = stop['dir0']['StopSequence'] | int %}
+	    {% if seq<0 or seq>99 %}
+	    class="no_sequence"
+	    {% endif %}
+	>
             <td>{{ stop['dir0']['StopSequence'] }}</td>
             <td>{{ stop['dir0']['PlateNumb'] }}</td>
 	    <td>{{ stop['dir0']['est_min'] }}</td>
@@ -28,7 +33,8 @@
         {% endfor %}
     </table>
 
-    <p class="center">* 站牌順序若是超出 0~99， 表示 tdx 傳回的資料裡沒有站牌順序，
+    <p class="center no_sequence">* 站牌順序若是超出 0~99，
+    表示 tdx 服務傳回的資料裡沒有站牌順序，
     tdx7984 只好胡亂指定； 它會被放在錯誤的位置。</p>
 
     <p class="center"><a href="/bus/sched/{{ city }}/{{ rtname }}">{{ rtname}} 發車時刻表</a> (只有少數縣市才有)</p>

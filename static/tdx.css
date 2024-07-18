@@ -41,6 +41,8 @@ table.center {
 
 table.center-content th, table.center-content td { text-align: center; }
 
+.no_sequence { background-color: #dcc; }
+
 #footer {
     width:25em;
     margin: 0 auto;
