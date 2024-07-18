@@ -1,0 +1,10 @@
+/var/log/tdx7984/*.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    create 600 ckhung ckhung
+}
+

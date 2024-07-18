@@ -1,6 +1,5 @@
 #!/bin/bash
 
-cd /opt/tdx7984
 source tdx-credential.sh
 
 for ct in $(grep -Po '\b[A-Z]\w+$' cities.csv) ; do

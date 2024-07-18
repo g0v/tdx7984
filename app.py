@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
-# apt install python3-flask python3-flask-cors python3-apscheduler
+# apt install python3-flask python3-flask-cors
 import logging, tdx, time, atexit, os, sqlite3, argparse, csv, re, operator, math, json, copy
 from datetime import datetime
 from flask import Flask, jsonify, render_template, send_from_directory, request, redirect
-from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
 from werkzeug.serving import WSGIRequestHandler, _log
 from logging.config import dictConfig
@@ -298,11 +297,6 @@ if __name__ == '__main__':
         help='設定檔路徑')
     G['args'] = parser.parse_args()
     tdx.init(G['args'].config)
-
-#    scheduler = BackgroundScheduler()
-#    scheduler.add_job(func=tdx.load_credential, trigger='interval', seconds=7200)
-#    atexit.register(lambda: scheduler.shutdown())
-#    scheduler.start()
 
     # openssl req -x509 -newkey rsa:4096 -nodes -out flask-cert.pem -keyout flask-key.pem -days 36500
     # https://blog.miguelgrinberg.com/post/running-your-flask-application-over-https
