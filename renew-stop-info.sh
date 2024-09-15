@@ -1,5 +1,7 @@
 #!/bin/bash
 
+TDX7984_DIR=$(dirname "$0")
+cd $TDX7984_DIR
 source tdx-credential.sh
 
 for ct in $(grep -Po '\b[A-Z]\w+$' cities.csv) ; do
