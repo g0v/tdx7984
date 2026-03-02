@@ -4,7 +4,7 @@ TDX7984_DIR=$(dirname "$0")
 echo $TDX7984_DIR
 cd $TDX7984_DIR
 source tdx-credential.sh
-mkdir city-stops
+mkdir -p city-stops
 
 for ct in $(grep -Po '\b[A-Z]\w+$' cities.csv) ; do
 # for ct in TaitungCounty ; do # 省時測試版，只更新台東縣
